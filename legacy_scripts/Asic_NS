@@ -1,0 +1,323 @@
+#!/usr/bin/expect
+proc syslog {msg {TYPE 0} } {
+        global ECHO_ENABLED
+        if {$ECHO_ENABLED} {
+                return 1
+        }
+     if {$TYPE == 0 } {
+        puts $msg
+     } else {
+        Banner $msg
+     }
+        return 1
+
+}
+proc LOGIN_SSH_FW { LOG_INFO } {
+  global SPAWN_ID PROMPT prompt
+  set IP_ADDR [lindex [split $LOG_INFO "/"] 0 ]
+  set LOGIN [lindex [split $LOG_INFO "/"] 1 ]
+  set PASSWD [lindex [split $LOG_INFO "/"] 2 ]
+  set timeout 30
+
+  Banner "About to spawn ssh to $IP_ADDR "
+  catch { set Log_Pid [spawn ssh -l $LOGIN $IP_ADDR ] } retval
+  set SPAWN_ID $spawn_id
+
+  expect {
+    -i $SPAWN_ID "Connection refused" {
+      Banner "Unsuccessful connection. 
+      Device at $IP_ADDR did not accept ssh."
+      return "0 TIMEOUT "
+    }
+    -i $SPAWN_ID timeout {
+      Banner "Timed out waiting for login, 
+      password or prompt from $IP_ADDR"
+      return "0 TIMEOUT "
+    }
+    -i $SPAWN_ID "(yes/no)" {
+      send -i $SPAWN_ID "yes\r"
+      exp_continue
+    }
+    -i $SPAWN_ID "login:" {
+      send -i $SPAWN_ID "$LOGIN\r"
+      exp_continue
+    }
+    -i $SPAWN_ID "password:" {
+      send -i $SPAWN_ID "$PASSWD\r"
+      exp_continue
+    }
+    -i $SPAWN_ID "Remote Management Console" {
+      # send -i $SPAWN_ID "$PASSWD\r"
+      exp_continue
+    }
+    -i $SPAWN_ID -re ".*->" {
+      set PROMPT $expect_out(buffer)
+      set PROMPT [string trimleft $PROMPT]
+      # Banner "PROMPT is $PROMPT"
+     return "1 $SPAWN_ID $PROMPT "
+    }
+  }
+}
+
+proc login_server {spid username passwd} {
+        global expect_out prompt
+        expect {
+                -i $spid
+                timeout {
+                        send_user "\nFAILED TO GET PASSWD PROMPT\n"
+                        exit 1
+                }
+                eof {
+                        send_user "\nSSH FAILURE!\n"
+                        exit 1
+                }
+                "*assword:"
+        }
+        send -i $spid "$passwd\r"
+        expect {
+                -i $spid
+                timeout {
+                        send_user "\nFAILED AFTER SEND PASSWD!\n"
+                }
+                $prompt {
+                        send "\r"
+                }
+        }
+        return $expect_out(buffer)
+}
+
+
+proc dump_output {output sp ASIC QMU} {
+        global F_out OUT
+        set ln [split $output "\n"]
+        foreach k $ln {
+                set v [string repeat " " $sp]
+                syslog "$v$k"
+               
+                puts $F_out "DUMPING OUTPUT:"
+                puts $F_out "$v$k"
+                set OUT($ASIC,$QMU,ALARM) $v$k
+        }
+}
+proc send_alarm {output aq_info} {
+        global drop_reg F_out OUT
+        set aq [split $aq_info ":"]
+        set ASIC [lindex $aq 0]
+        set QMU [lindex $aq 1]
+        # set val [regexp $drop_reg $output m c]
+        # puts "Drop Register value is:  $val"
+        # exit
+        set OUT($ASIC,$QMU) "EMPTY"
+
+        if {[regexp $drop_reg $output m c]} {
+                set OUT(ALARM) ALARM
+                syslog "  ----------- ALARM FOUND DROP --------------"
+                dump_output $output 5 $ASIC $QMU
+                syslog "  ------------------------------------------"
+                set OUT($ASIC,$QMU) "ALARM"
+                puts $F_out "\n======================================="
+                puts $F_out "----------ALARM:  DROPS FOUND----------"
+                puts $F_out "======================================="
+	        puts $F_out "ASIC: $ASIC  "
+	        puts $F_out "QMU:  $QMU"
+                puts $F_out "======================================="
+                puts $F_out "----------ALARM:  DROPS FOUND----------"
+                puts $F_out "=======================================\n\n"
+
+                return 0
+        } else {
+                set OUT($ASIC,$QMU) "NO"
+        }
+        return 1
+}
+proc get_asic_command {spid asic_id qmu_id} {
+        global expect_out prompt
+        set i 1
+        set cmd "get asic $asic_id engine qmu pktcnt $qmu_id"
+        while {$i<4} {
+             if {$i == 3} {
+                puts " ITER # $i  --    
+\[->]Begin validate process for  ASIC:$asic_id QMU ID: $qmu_id ...."
+              }
+                send -i $spid "$cmd\r"
+                expect {
+                        -i $spid
+                        eof {
+                                send_user "\nIN proc get_asic_command :: 
+GOT CONNECTION ERROR!\n"
+                                exit 1
+                        }
+                        $prompt
+                }
+           if {$i < 3} {
+              puts "Sleeping for 2 seconds"
+              after 2000
+           }
+                incr i
+        }
+        Banner "Validating ASIC: $asic_id QMU: $qmu_id"
+        set ret [send_alarm $expect_out(buffer)  $asic_id:$qmu_id]
+        return $ret
+}
+proc monitor_server {ip_addr user passwd} {
+        global qmu_list prompt asic_list
+
+        set active_flag 1
+        set RET [LOGIN_SSH_FW $ip_addr/$user/$passwd]
+
+        # spawn ssh -l $user $ip_addr
+        if { [lindex $RET 0] == 1 } {
+        set spid [lindex $RET 1]
+        set prompt [lindex $RET 2]
+      } else {
+        ERR_Banner "UNABLE TO LOGIN: [lindex $RET 1]"
+        exit
+      }
+        # set ret [login_server $spid $user $passwd]
+
+        syslog "SUCCESSFUL LOGIN TO: $ip_addr" B
+        foreach a $asic_list {
+             foreach q $qmu_list {
+                set ret [get_asic_command $spid $a $q]
+             }
+        }
+        send -i $spid "exit"
+        return 1
+}
+
+proc Banner {STRING} {
+  puts "\n\n====================================="
+  puts "-------------------------------------"
+  puts "====================================="
+  puts "$STRING"
+  puts "====================================="
+  puts "-------------------------------------"
+  puts "=====================================\n"
+}
+
+proc ERR_Banner {STRING} {
+  puts "\n\n====================================="
+  puts "-ERR-ERR-ERR-ERR-ERR-ERR-ERR-ERR-ERR-"
+  puts "====================================="
+  puts "$STRING"
+  puts "====================================="
+  puts "-ERR-ERR-ERR-ERR-ERR-ERR-ERR-ERR-ERR-"
+  puts "=====================================\n"
+}
+
+proc sleeper {seconds} {
+    global gPassed gFailed gErrString gErrCode
+    global gVismCardType
+    Banner "Going to sleep now for $seconds seconds"
+
+    if {$seconds >= 10 } {
+       set temp [expr $seconds/10 + 1]
+       for {set i 1} {$i < $temp } { incr i 1} {
+         after 10000
+         puts "[expr $i * 10] of $seconds seconds elapsed"
+         }
+
+    } else {
+        set temp $seconds
+        for {set i 1} {$i < $temp } { incr i 1} {
+         after 1000
+         puts " $i of $seconds seconds elapsed"
+         }
+    }
+}
+####
+####  Begin Script here
+####
+
+global F_out OUT
+
+for {set i 0} {$i <=3} {incr i 1} {
+  if { [llength [lindex $argv $i] ] > 0} {
+    set ARG($i) [lindex $argv $i]
+  } else {
+     set ARG($i) "EMPTY"
+  }
+}
+
+if {$ARG(0) == "EMPTY" } {
+  ERR_Banner "ERROR - 
+ Usage:  asic <IP.ADDR> "
+  exit
+} else {
+  set ip_addr $ARG(0)
+}
+
+set timeout 10
+
+set ip_addr [lindex $argv 0]
+
+set user "netscreen"
+set passwd "netscreen"
+set OUT(ALARM) NONE
+# set prompt "*-> "
+
+set ECHO_ENABLED 0
+set SLEEP_TIME 10
+set qmu_list {1 2 4 6 7 9}
+set asic_list {0 1 2 3 4 5}
+set drop_reg {pktcnt\[.*\-d\s+] = 0x[[:xdigit:]]+\s+l([1-9]+)}
+log_user $ECHO_ENABLED
+
+set n 1
+set active_flag 1
+set outfile ./NS_ASIC_CHECK_OUT.txt
+set F_out [open $outfile w]
+
+
+
+set s [clock seconds]
+# puts $F_out "\nSTART PROCESS : [clock format $s -format {%H:%M:%S, %D}]"
+# Banner "\nSTART PROCESS : [clock format $s -format {%H:%M:%S, %D}]"
+
+monitor_server $ip_addr $user $passwd
+
+set s2 [clock seconds]
+puts $F_out "\nSTART PROCESS : [clock format $s -format {%H:%M:%S, %D}]"
+Banner "\nSTART PROCESS : [clock format $s -format {%H:%M:%S, %D}]"
+
+puts $F_out "\nPROCESS ENDED : [clock format $s2 -format {%H:%M:%S, %D}]"
+Banner "\nPROCESS ENDED : [clock format $s2 -format {%H:%M:%S, %D}]"
+
+puts "--------------------------------------------------------------\n"
+puts $F_out "--------------------------------------------------------------\n"
+
+if {$OUT(ALARM) != "NONE" } {
+   puts $F_out "\n\n--------------------------------------------------------------\n"
+   puts $F_out "ALARM!!!! DROPS FOUND FOR THE FOLLOWING:"
+   puts $F_out "--------------------------------------------------------------\n"
+   foreach a $asic_list {
+           foreach q $qmu_list {
+               if {$OUT($a,$q)=="ALARM"} {
+                puts $F_out "ASIC: $a QMU: $q -- $OUT($a,$q,ALARM)"
+               }
+             }
+   }
+} else {
+   puts $F_out "\n\n--------------------------------------------------------------\n"
+   puts $F_out "NO ALARMS - NO DROPS!"
+   puts $F_out "--------------------------------------------------------------\n"
+} 
+
+puts $F_out "\n\n--------------------------------------------------------------\n"
+puts $F_out "NO DROPS FOUND FOR THE FOLLOWING:"
+puts $F_out "--------------------------------------------------------------\n"
+foreach a $asic_list {
+     foreach q $qmu_list {
+          if {$OUT($a,$q)=="NO"} {
+             puts $F_out "ASIC: $a QMU: $q -- NO drops found"
+          }
+     }
+}
+
+
+
+
+
+Banner "Output can be found in file: $outfile"
+
+close $F_out
