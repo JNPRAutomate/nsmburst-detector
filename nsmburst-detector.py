@@ -5,6 +5,8 @@ import socket
 import paramiko
 import re
 
+paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
+
 ASICList = { "ns5400": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "isg1000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "isg2000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 
 class NetScreenAgent:
@@ -26,11 +28,11 @@ class NetScreenAgent:
         self.transport = paramiko.Transport(self.socket)
         self.transport.start_client()
         self.transport.auth_password(username=self.username,password=self.password)
-        self.chan = self.transport.open_channel("session")
-        #self.chan.get_pty(term='vt100', width=80, height=24)
-        #self.chan.set_combine_stderr(True)
-        #self.chan.setblocking(blocking=1)
-        #self.chan.settimeout(timeout=5)
+        self.chan = self.transport.open_session()
+        self.chan.get_pty(term='vt100', width=80, height=24)
+        self.chan.set_combine_stderr(True)
+        self.chan.setblocking(blocking=0)
+        self.chan.settimeout(None)
         self.chan.invoke_shell()
 
         #self.sshClient = paramiko.SSHClient()
@@ -39,17 +41,18 @@ class NetScreenAgent:
 
     def runCommand(self,command):
         """Run a specified command"""
-        bytesSent = self.chan.send(command)
+        self.chan.send("set console page 0\n")
+        bytesSent = self.chan.send("get config\n")
         print "Sent " + str(bytesSent)
         coutstr=""
         result=""
-        while not self.chan.closed:
+        while True:
             coutstr = self.chan.recv(1024)
             result += coutstr
-            print len(coutstr)
+            print coutstr
             if len(coutstr) < 1024:
-                break
-        print result
+                print result
+                #return
 
         #stdin, stdout, stderr = self.sshClient.exec_command(command)
         #print stdout.read()
@@ -78,10 +81,10 @@ class NetScreenAgent:
         """Disconnect from the device"""
         self.chan.close()
         self.transport.close()
-
+        self.socket.close()
 
 agent = NetScreenAgent("10.0.1.222","netscreen","netscreen",True)
 agent.connect()
 agent.runCommand("get config")
 
-agent.disconnect()
+#agent.disconnect()
