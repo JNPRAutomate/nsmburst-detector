@@ -1,14 +1,13 @@
 """
 Microburst detection tool for ASIC-based NetScreen platforms
 """
+import socket
 import paramiko
 import re
 
-foo = {}
-
 ASICList = { "ns5400": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "isg1000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "isg2000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 
-class MburstAgent:
+class NetScreenAgent:
     def __init__(self,hostname,username,password,output):
         """Initalize the object with the correct hostname,username, and password"""
         self.remoteHost = hostname
@@ -22,15 +21,39 @@ class MburstAgent:
 
     def connect(self):
         """Create a connection to the remote device"""
-        self.sshClient = paramiko.SSHClient()
-        self.sshClient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.sshClient.connect(self.remoteHost,username=self.username,password=self.password,look_for_keys=0)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.connect((self.remoteHost,22))
+        self.transport = paramiko.Transport(self.socket)
+        self.transport.start_client()
+        self.transport.auth_password(username=self.username,password=self.password)
+        self.chan = self.transport.open_channel("session")
+        #self.chan.get_pty(term='vt100', width=80, height=24)
+        #self.chan.set_combine_stderr(True)
+        #self.chan.setblocking(blocking=1)
+        #self.chan.settimeout(timeout=5)
+        self.chan.invoke_shell()
+
+        #self.sshClient = paramiko.SSHClient()
+        #self.sshClient.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
+        #self.sshClient.connect(self.remoteHost,username=self.username,password=self.password,allow_agent=False,compress=False,look_for_keys=False)
 
     def runCommand(self,command):
         """Run a specified command"""
-        stdin, stdout, stderr = self.sshClient.exec_command(command)
-        print stdout.read()
-        print stderr.read()
+        bytesSent = self.chan.send(command)
+        print "Sent " + str(bytesSent)
+        coutstr=""
+        result=""
+        while not self.chan.closed:
+            coutstr = self.chan.recv(1024)
+            result += coutstr
+            print len(coutstr)
+            if len(coutstr) < 1024:
+                break
+        print result
+
+        #stdin, stdout, stderr = self.sshClient.exec_command(command)
+        #print stdout.read()
+        #print stderr.read()
 
     def checkPlatform(self):
         """Determine the local platform type"""
@@ -49,14 +72,16 @@ class MburstAgent:
 
     def getAsicCoutners(self,asicid,qmuid):
         """Get the counters from the specified asic"""
-        self.sshClient.exec_command("set asic %s engine qmu pktcnt %s" % (asicid,qmuid))
+        self.sshClient.exec_command("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
 
     def disconnect(self):
         """Disconnect from the device"""
-        self.sshClient.close()
+        self.chan.close()
+        self.transport.close()
 
 
-agent = MburstAgent("172.16.244.171","vagrant","vagrant",True)
+agent = NetScreenAgent("10.0.1.222","netscreen","netscreen",True)
 agent.connect()
-agent.runCommand("ls -la")
+agent.runCommand("get config")
+
 agent.disconnect()
