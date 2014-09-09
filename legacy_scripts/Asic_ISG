@@ -1,4 +1,6 @@
 #!/usr/bin/expect
+
+### this just outputs data
 proc syslog {msg {TYPE 0} } {
         global ECHO_ENABLED
         if {$ECHO_ENABLED} {
@@ -12,6 +14,8 @@ proc syslog {msg {TYPE 0} } {
         return 1
 
 }
+
+### handles SSH access
 proc LOGIN_SSH_FW { LOG_INFO } {
   global SPAWN_ID PROMPT prompt
   set IP_ADDR [lindex [split $LOG_INFO "/"] 0 ]
@@ -25,12 +29,12 @@ proc LOGIN_SSH_FW { LOG_INFO } {
 
   expect {
     -i $SPAWN_ID "Connection refused" {
-      Banner "Unsuccessful connection. 
+      Banner "Unsuccessful connection.
       Device at $IP_ADDR did not accept ssh."
       return "0 TIMEOUT "
     }
     -i $SPAWN_ID timeout {
-      Banner "Timed out waiting for login, 
+      Banner "Timed out waiting for login,
       password or prompt from $IP_ADDR"
       return "0 TIMEOUT "
     }
@@ -59,6 +63,7 @@ proc LOGIN_SSH_FW { LOG_INFO } {
   }
 }
 
+### Handles getting username and password from customer
 proc login_server {spid username passwd} {
         global expect_out prompt
         expect {
@@ -86,19 +91,21 @@ proc login_server {spid username passwd} {
         return $expect_out(buffer)
 }
 
-
+### Prints output
 proc dump_output {output sp ASIC QMU} {
         global F_out OUT
         set ln [split $output "\n"]
         foreach k $ln {
                 set v [string repeat " " $sp]
                 syslog "$v$k"
-               
+
                 puts $F_out "DUMPING OUTPUT:"
                 puts $F_out "$v$k"
                 set OUT($ASIC,$QMU,ALARM) $v$k
         }
 }
+
+### displays output
 proc send_alarm {output aq_info} {
         global drop_reg F_out OUT
         set aq [split $aq_info ":"]
@@ -130,20 +137,22 @@ proc send_alarm {output aq_info} {
         }
         return 1
 }
+
+### send asic commands
 proc get_asic_command {spid asic_id qmu_id} {
         global expect_out prompt
         set i 1
         set cmd "get asic engine qmu pktcnt $qmu_id"
         while {$i<4} {
              if {$i == 3} {
-                puts " ITER # $i  --    
+                puts " ITER # $i  --
 \[->]Begin validate process for  ASIC:$asic_id QMU ID: $qmu_id ...."
               }
                 send -i $spid "$cmd\r"
                 expect {
                         -i $spid
                         eof {
-                                send_user "\nIN proc get_asic_command :: 
+                                send_user "\nIN proc get_asic_command ::
 GOT CONNECTION ERROR!\n"
                                 exit 1
                         }
@@ -159,6 +168,8 @@ GOT CONNECTION ERROR!\n"
         set ret [send_alarm $expect_out(buffer)  $asic_id:$qmu_id]
         return $ret
 }
+
+### Run ASIC commands
 proc monitor_server {ip_addr user passwd} {
         global qmu_list prompt asic_list
 
@@ -185,6 +196,7 @@ proc monitor_server {ip_addr user passwd} {
         return 1
 }
 
+### Banner output function
 proc Banner {STRING} {
   puts "\n\n====================================="
   puts "-------------------------------------"
@@ -195,6 +207,7 @@ proc Banner {STRING} {
   puts "=====================================\n"
 }
 
+### Error banner output function
 proc ERR_Banner {STRING} {
   puts "\n\n====================================="
   puts "-ERR-ERR-ERR-ERR-ERR-ERR-ERR-ERR-ERR-"
@@ -205,6 +218,7 @@ proc ERR_Banner {STRING} {
   puts "=====================================\n"
 }
 
+### Handle sleeps
 proc sleeper {seconds} {
     global gPassed gFailed gErrString gErrCode
     global gVismCardType
@@ -240,7 +254,7 @@ for {set i 0} {$i <=3} {incr i 1} {
 }
 
 if {$ARG(0) == "EMPTY" } {
-  ERR_Banner "ERROR - 
+  ERR_Banner "ERROR -
  Usage:  asic <IP.ADDR> "
   exit
 } else {
@@ -301,7 +315,7 @@ if {$OUT(ALARM) != "NONE" } {
    puts $F_out "\n\n--------------------------------------------------------------\n"
    puts $F_out "NO ALARMS - NO DROPS!"
    puts $F_out "--------------------------------------------------------------\n"
-} 
+}
 
 puts $F_out "\n\n--------------------------------------------------------------\n"
 puts $F_out "NO DROPS FOUND FOR THE FOLLOWING:"
