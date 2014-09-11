@@ -3,9 +3,11 @@ Microburst detection tool for ASIC-based NetScreen platforms
 """
 import socket
 import paramiko
+import sys
 import re
+import select
 
-paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
+#paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
 
 ASICList = { "ns5400": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "isg1000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "isg2000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 
@@ -13,6 +15,8 @@ class NetScreenAgent:
     def __init__(self,hostname,username,password,output):
         """Initalize the object with the correct hostname,username, and password"""
         self.remoteHost = hostname
+        self.promptEnding = "->"
+        self.promptRegex = re.compile(".*->")
         self.username = username
         self.password = password
         self.platform = ""
@@ -29,34 +33,62 @@ class NetScreenAgent:
         self.transport.start_client()
         self.transport.auth_password(username=self.username,password=self.password)
         self.chan = self.transport.open_session()
-        self.chan.get_pty(term='vt100', width=80, height=24)
-        self.chan.set_combine_stderr(True)
-        self.chan.setblocking(blocking=0)
+        self.chan.set_combine_stderr(False)
+        self.chan.setblocking(blocking=1)
         self.chan.settimeout(None)
+        self.stdout = self.chan.makefile()
+        self.chan.get_pty(term='vt100', width=80, height=24)
         self.chan.invoke_shell()
-
+        self._disablePaging()
+        #clear output buffer
         #self.sshClient = paramiko.SSHClient()
         #self.sshClient.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
         #self.sshClient.connect(self.remoteHost,username=self.username,password=self.password,allow_agent=False,compress=False,look_for_keys=False)
 
-    def runCommand(self,command):
-        """Run a specified command"""
-        self.chan.send("set console page 0\n")
-        bytesSent = self.chan.send("get config\n")
-        print "Sent " + str(bytesSent)
+    def _runSilentCommand(self,command):
+        """Run a command and supress any output, used for simple housekeeping tasks"""
+        self.chan.send(command + "\n")
         coutstr=""
         result=""
+        promptMatch = 0
         while True:
             coutstr = self.chan.recv(1024)
             result += coutstr
-            print coutstr
             if len(coutstr) < 1024:
-                print result
-                #return
+                lines = result.splitlines()
+                for line in lines:
+                    print "SILENT " + line
+                    print "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
+                    if self.promptRegex.match(line):
+                        print "PROMPT MATCH >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+                        promptMatch = promptMatch + 1
+                        if promptMatch == 2:
+                            return
 
-        #stdin, stdout, stderr = self.sshClient.exec_command(command)
-        #print stdout.read()
-        #print stderr.read()
+    def _disablePaging(self):
+        """disables paging on the console to prevent the need to interact with a pagnated set of output"""
+        self._runSilentCommand("set console page 0")
+
+    def runCommand(self,command):
+        """Run a specified command against the device"""
+        self.chan.send(command + "\n")
+        coutstr=""
+        result=""
+        promptMatch = 0
+        while True:
+            coutstr = self.chan.recv(1024)
+            result += coutstr
+            if len(coutstr) < 1024:
+                lines = result.splitlines()
+                for line in lines:
+                    print "foo " + line
+                    print "############################################################################################"
+                    if self.promptRegex.match(line):
+                        promptMatch = promptMatch + 1
+                        print "PROMPT MATCH " + str(promptMatch) + " #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+                        if promptMatch == 1:
+                            return
+                #return
 
     def checkPlatform(self):
         """Determine the local platform type"""
@@ -83,8 +115,7 @@ class NetScreenAgent:
         self.transport.close()
         self.socket.close()
 
-agent = NetScreenAgent("10.0.1.222","netscreen","netscreen",True)
+agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
 agent.connect()
 agent.runCommand("get config")
-
-#agent.disconnect()
+agent.disconnect()
