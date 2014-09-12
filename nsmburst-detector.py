@@ -9,7 +9,7 @@ import select
 
 #paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
 
-ASICList = { "ns5400": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "isg1000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "isg2000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
+ASICList = { "NetScreen-5400-III": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 
 class NetScreenAgent:
     def __init__(self,hostname,username,password,output):
@@ -37,7 +37,6 @@ class NetScreenAgent:
         self.chan.set_combine_stderr(False)
         self.chan.setblocking(blocking=1)
         self.chan.settimeout(None)
-        self.stdout = self.chan.makefile()
         self.chan.get_pty(term='vt100', width=80, height=24)
         self.chan.invoke_shell()
         self._disablePaging()
@@ -142,7 +141,8 @@ class NetScreenAgent:
         self.transport.close()
         self.socket.close()
 
-agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
+#agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
+agent = NetScreenAgent("10.0.1.222","netscreen","netscreen",True)
 agent.connect()
 agent.checkPlatform()
 print agent.systemFacts
