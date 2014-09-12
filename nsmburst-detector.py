@@ -14,6 +14,7 @@ ASICList = { "ns5400": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "
 class NetScreenAgent:
     def __init__(self,hostname,username,password,output):
         """Initalize the object with the correct hostname,username, and password"""
+        self.systemFacts = {"product":"","serialNumber":"","controlNumber":"","version":"","type":""}
         self.remoteHost = hostname
         self.promptEnding = "->"
         self.promptRegex = re.compile(".*->")
@@ -45,7 +46,7 @@ class NetScreenAgent:
         #self.sshClient.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
         #self.sshClient.connect(self.remoteHost,username=self.username,password=self.password,allow_agent=False,compress=False,look_for_keys=False)
 
-    def _runSilentCommand(self,command):
+    def _runSilentCommand(self,command,maxMatch):
         """Run a command and supress any output, used for simple housekeeping tasks"""
         self.chan.send(command + "\n")
         coutstr=""
@@ -60,50 +61,75 @@ class NetScreenAgent:
                     print "SILENT " + line
                     print "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
                     if self.promptRegex.match(line):
-                        print "PROMPT MATCH >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
                         promptMatch = promptMatch + 1
-                        if promptMatch == 2:
+                        if promptMatch == maxMatch:
                             return
 
     def _disablePaging(self):
         """disables paging on the console to prevent the need to interact with a pagnated set of output"""
-        self._runSilentCommand("set console page 0")
+        self._runSilentCommand("set console page 0",2)
+
+    def _enablePaging(self):
+        """disables paging on the console to prevent the need to interact with a pagnated set of output"""
+        self._runSilentCommand("set console page 20",1)
 
     def runCommand(self,command):
-        """Run a specified command against the device"""
+        """Run a specified command against the device, returns the output of the command"""
+        #validate connected before running command
         self.chan.send(command + "\n")
         coutstr=""
         result=""
+        finalOutput = ""
         promptMatch = 0
+        lineCount = 0
         while True:
             coutstr = self.chan.recv(1024)
             result += coutstr
             if len(coutstr) < 1024:
                 lines = result.splitlines()
                 for line in lines:
-                    print "foo " + line
-                    print "############################################################################################"
+                    lineCount = lineCount + 1
                     if self.promptRegex.match(line):
                         promptMatch = promptMatch + 1
-                        print "PROMPT MATCH " + str(promptMatch) + " #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
                         if promptMatch == 1:
-                            return
-                #return
+                            return finalOutput
+                    elif lineCount == 1:
+                        """Skip processing this line"""
+                    else:
+                        finalOutput = finalOutput + line + "\n"
 
     def checkPlatform(self):
         """Determine the local platform type"""
+
         # Product Name: NetScreen-5400-III
-        systemMatch = "Product Name: ([\w\W]+)"
-        # Serial Number: 0047122010000025, Control Number: 00000000
-        serialNumberMatch = "Serial Number: ([\d]+), Control Number: ([\d]+)"
-        #Software Version: 6.2.0r9-cu4.0, Type: Firewall+VPN
-        softwareVersionMatch = "Software Version: ([\w\W]+), Type: ([\w\W]+)"
+        systemMatch = "Product Name: ([\w\-_]+)"
         systemMatchRe = re.compile(systemMatch)
 
-        stdin, stdout, stderr = self.sshClient.exec_command("get system")
-        outputLines = stdout.splitlines()
-        for line in outputLines:
-            print line
+        # Serial Number: 0047122010000025, Control Number: 00000000
+        serialNumberMatch = "Serial Number: ([\d]+), Control Number: ([\d]+)"
+        serialNumberMatchRe = re.compile(serialNumberMatch)
+
+        #Software Version: 6.2.0r9-cu4.0, Type: Firewall+VPN
+        softwareVersionMatch = "Software Version: ([\w\-_\.\+]+), Type: ([\w\-_\.\+]+)"
+        softwareVersionMatchRe = re.compile(softwareVersionMatch)
+
+        output = self.runCommand("get system")
+        splitLines = output.splitlines()
+        for line in splitLines:
+            if systemMatchRe.match(line):
+                #
+                result = systemMatchRe.match(line)
+                self.systemFacts["product"] = result.group(1)
+            elif serialNumberMatchRe.match(line):
+                #
+                result = serialNumberMatchRe.match(line)
+                self.systemFacts["serialNumber"] = result.group(1)
+                self.systemFacts["controlNumber"] = result.group(2)
+            elif softwareVersionMatchRe.match(line):
+                #
+                result = softwareVersionMatchRe.match(line)
+                self.systemFacts["version"] = result.group(1)
+                self.systemFacts["type"] = result.group(2)
 
     def getAsicCoutners(self,asicid,qmuid):
         """Get the counters from the specified asic"""
@@ -111,11 +137,13 @@ class NetScreenAgent:
 
     def disconnect(self):
         """Disconnect from the device"""
+        self._enablePaging()
         self.chan.close()
         self.transport.close()
         self.socket.close()
 
 agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
 agent.connect()
-agent.runCommand("get config")
+agent.checkPlatform()
+print agent.systemFacts
 agent.disconnect()
