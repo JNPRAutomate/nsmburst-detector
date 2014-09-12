@@ -132,7 +132,12 @@ class NetScreenAgent:
 
     def getAsicCoutners(self,asicid,qmuid):
         """Get the counters from the specified asic"""
-        self.sshClient.exec_command("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
+        self.runCommand("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
+
+    def getAllAsicCounters(self):
+        """Get all counters from the platform"""
+        print "foo"
+
 
     def disconnect(self):
         """Disconnect from the device"""
