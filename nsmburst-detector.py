@@ -9,12 +9,12 @@ import select
 
 #paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
 
-ASICList = { "NetScreen-5400-III": {"asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
+ASICList = { "ns5000Mgmt3": { "productString":"NetScreen-5400-III","asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "isg1000": { "productString":"NetScreen-1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "isg2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 
 class NetScreenAgent:
     def __init__(self,hostname,username,password,output):
         """Initalize the object with the correct hostname,username, and password"""
-        self.systemFacts = {"product":"","serialNumber":"","controlNumber":"","version":"","type":""}
+        self.systemFacts = {"hostname":"","product":"","serialNumber":"","controlNumber":"","version":"","type":""}
         self.remoteHost = hostname
         self.promptEnding = "->"
         self.promptRegex = re.compile(".*->")
@@ -40,10 +40,6 @@ class NetScreenAgent:
         self.chan.get_pty(term='vt100', width=80, height=24)
         self.chan.invoke_shell()
         self._disablePaging()
-        #clear output buffer
-        #self.sshClient = paramiko.SSHClient()
-        #self.sshClient.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
-        #self.sshClient.connect(self.remoteHost,username=self.username,password=self.password,allow_agent=False,compress=False,look_for_keys=False)
 
     def _runSilentCommand(self,command,maxMatch):
         """Run a command and supress any output, used for simple housekeeping tasks"""
@@ -97,11 +93,29 @@ class NetScreenAgent:
                     else:
                         finalOutput = finalOutput + line + "\n"
 
+    def getSystemFacts(self):
+        """Gets all of the needed system facts"""
+        self.getHostname()
+        self.checkPlatform()
+
+    def getHostname(self):
+        """Get system hostname"""
+        hostnameMatch = "Hostname: ([\w\W]+)"
+        hostnameMatchRe = re.compile(hostnameMatch)
+
+        output = self.runCommand("get hostname")
+        splitLines = output.splitlines()
+        for line in splitLines:
+            if hostnameMatchRe.match(line):
+                result = hostnameMatchRe.match(line)
+                self.systemFacts["hostname"] = result.group(1)
+
+
     def checkPlatform(self):
         """Determine the local platform type"""
 
         # Product Name: NetScreen-5400-III
-        systemMatch = "Product Name: ([\w\-_]+)"
+        systemMatch = "Product Name: ([\w\W]+)"
         systemMatchRe = re.compile(systemMatch)
 
         # Serial Number: 0047122010000025, Control Number: 00000000
@@ -109,7 +123,7 @@ class NetScreenAgent:
         serialNumberMatchRe = re.compile(serialNumberMatch)
 
         #Software Version: 6.2.0r9-cu4.0, Type: Firewall+VPN
-        softwareVersionMatch = "Software Version: ([\w\-_\.\+]+), Type: ([\w\-_\.\+]+)"
+        softwareVersionMatch = "Software Version: ([\w\W]+), Type: ([\w\W]+)"
         softwareVersionMatchRe = re.compile(softwareVersionMatch)
 
         output = self.runCommand("get system")
@@ -132,7 +146,14 @@ class NetScreenAgent:
 
     def getAsicCoutners(self,asicid,qmuid):
         """Get the counters from the specified asic"""
-        self.runCommand("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
+        if self.systemFacts["product"] == "":
+            print "Product facts not gathered"
+        elif self.systemFacts["product"] == ASICList["isg2000"]["productString"]:
+            self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
+        elif self.systemFacts["product"] == ASICList["isg1000"]["productString"]:
+            self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
+        elif self.systemFacts["product"] == ASICList["ns5000Mgmt3"]["productString"]:
+            self.runCommand("get asic %s engine qmu pktcnt %s" % (qmuid))
 
     def getAllAsicCounters(self):
         """Get all counters from the platform"""
@@ -146,9 +167,9 @@ class NetScreenAgent:
         self.transport.close()
         self.socket.close()
 
-#agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
-agent = NetScreenAgent("10.0.1.222","netscreen","netscreen",True)
+agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
+#agent = NetScreenAgent("10.0.1.222","netscreen","netscreen",True)
 agent.connect()
-agent.checkPlatform()
+agent.getSystemFacts()
 print agent.systemFacts
 agent.disconnect()
