@@ -144,20 +144,22 @@ class NetScreenAgent:
                 self.systemFacts["version"] = result.group(1)
                 self.systemFacts["type"] = result.group(2)
 
-    def getAsicCoutners(self,asicid,qmuid):
+    def getAsicCountners(self,asicid,qmuid):
         """Get the counters from the specified asic"""
         if self.systemFacts["product"] == "":
             print "Product facts not gathered"
         elif self.systemFacts["product"] == ASICList["isg2000"]["productString"]:
-            self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
+            output = self.runCommand("get asic engine qmu pktcnt %s" % ("6"))
+            print output
         elif self.systemFacts["product"] == ASICList["isg1000"]["productString"]:
-            self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
+            self.runCommand("get asic engine qmu pktcnt %s" % ("6"))
         elif self.systemFacts["product"] == ASICList["ns5000Mgmt3"]["productString"]:
-            self.runCommand("get asic %s engine qmu pktcnt %s" % (qmuid))
+            self.runCommand("get asic %s engine qmu pktcnt %s" % (asicidmqmuid))
 
     def getAllAsicCounters(self):
         """Get all counters from the platform"""
         print "foo"
+        #itterate through the asics and the counters on the platform
 
 
     def disconnect(self):
@@ -172,4 +174,5 @@ agent = NetScreenAgent("172.22.152.24","netscreen","netscreen",True)
 agent.connect()
 agent.getSystemFacts()
 print agent.systemFacts
+agent.getAsicCountners("","")
 agent.disconnect()
