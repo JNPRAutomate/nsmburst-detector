@@ -1,0 +1,7 @@
+#Test File
+#Hostname/IP,username,password #if no username and password defined then a gloabl one is used
+172.22.152.24,netscreen,netscreen
+foo,bar
+foo,bar,
+#172.22.152.2,netscreen,netscreen
+lattern.spglab.juniper.net,regress,MaRtInI
