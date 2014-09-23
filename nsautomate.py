@@ -7,15 +7,40 @@ import time
 import sys
 import re
 import select
+import exceptions
+import sys
+#non-module imports
+import argparse
 
+#used to enable SSH debugging
 #paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
 
-ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_list": [1,2,3,4,5,6], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5400-III": { "productString":"NetScreen-5400-III","asic_list": [1,2,3,4,5,6], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "productString":"NetScreen-1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
+#Global settings
+
+#The asic and queue mapping data structure. Used for specifing ASICs to check per playtform
+ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_list": [1,2,3,4,5,6], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5400-III": { "productString":"NetScreen-5400-III","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "productString":"NetScreen-1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
+#The buffer list data structure specifies which queues to look at for each qmu
 BUFFERList = {"1":["CPU2-d"], "2":["CPU1-d","RSM1-d"],"4":["L2Q-d"],"6":["SLU-d","SLI-d"],"7":["XMT1-d","XMT2-d","XMT3-d","XMT4-d","XMT5-d","XMT6-d","XMT7-d","XMT8-d"],"9":["RSM2-d","CPU3-d","CPU4-d","CPU5-d"]}
-BUFFERExp = {"id":["a","..."]}
+
 
 class HostParser:
+    """
+    HostParser
+
+    This class is designed to parse a CSV file containing the host,
+     username and password for devices that the user wishes to connect to.
+
+    Input CSV Example:
+    #Comment lines start with #
+    //Comments can also start with C flavored comments as well
+    #IP,username,password example
+    1.2.3.4,foo,bar
+    #hostname,username,password
+    nshost.example.com,netscreen,netscreen
+
+    """
     def __init__(self, sourceFile):
+        """When creating the class you must specify the source file location"""
         self.sourceFile = sourceFile
         self.hostList = [] # host,username,password
         self.currentHost = 0
@@ -38,12 +63,18 @@ class HostParser:
                             '''carrige return only found'''
                         else:
                             self.hostList.append({"host":lineItems[0].rstrip(),"username":lineItems[1].rstrip(),"password":lineItems[2].rstrip()})
+                    elif len(lineItems) == 1 and lineItems[0] == "" and lineItems[1] == "" and lineItems[2] == "":
+                        """Only host was specified"""
+                        if newlineOnlyRE.match(lineItems[0]) or newlineOnlyRE.match(lineItems[1]) or newlineOnlyRE.match(lineItems[2]):
+                            '''carrige return only found'''
+                        else:
+                            self.hostList.append({"host":lineItems[0].rstrip(),"username":"","password":""})
                     else:
                         '''Ignore line'''
         except:
             raise Exception("Unable to open file")
     def getHosts(self):
-        '''return the current hostList'''
+        '''return the current hostList as a list of dicts'''
         return self.hostList
 
 class NetScreenAgent:
@@ -183,7 +214,7 @@ class NetScreenAgent:
                 self.systemFacts["version"] = result.group(1)
                 self.systemFacts["type"] = result.group(2)
 
-    def _getAsicCounters(self,asicid,qmuid):
+    def _getAsicCounter(self,asicid,qmuid):
         """Get the counters from the specified asic"""
         if self.systemFacts["product"] == "":
             print "Product facts not gathered"
@@ -225,8 +256,10 @@ class NetScreenAgent:
         for asic in asic_list:
             endValues[asic] = {}
             for qmu in qmu_list:
-                self._getAsicCounters(asic,qmu)
-                output = self._getAsicCounters(asic,qmu)
+                #Get the inital asic counters to initialize the buffer, ignore output
+                self._getAsicCounter(asic,qmu)
+                #Get the ASIC counters and save the output
+                output = self._getAsicCounter(asic,qmu)
                 lines = output.split("\n")
                 queueList = BUFFERList[str(qmu)]
                 endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
@@ -235,8 +268,8 @@ class NetScreenAgent:
         time.sleep(2)
         for asic in asic_list:
             for qmu in qmu_list:
-                self._getAsicCounters(asic,qmu)
-                output = self._getAsicCounters(asic,qmu)
+                self._getAsicCounter(asic,qmu)
+                output = self._getAsicCounter(asic,qmu)
                 lines = output.split("\n")
                 queueList = BUFFERList[str(qmu)]
                 endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
@@ -261,7 +294,10 @@ class NetScreenAgent:
                     asicDiff = int(runid0,0) - int(runid1,0)
                     if asicDiff > 0:
                         if self.output:
-                            print "Packet loss of %s packet(s) detected in ASIC %s witin queue %s on host %s" % (asicDiff,asic,queue,self.systemFacts["hostname"])
+                            print "Packet loss of %d packet(s) detected in ASIC %s witin queue %s on host %s" % (asicDiff,asic,queue.rjust(6),self.systemFacts["hostname"])
+                    else:
+                        if self.output:
+                            print "No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"])
 
     def disconnect(self):
         """Disconnect from the device"""
@@ -269,3 +305,48 @@ class NetScreenAgent:
         self.chan.close()
         self.transport.close()
         self.socket.close()
+
+#Main part of program
+
+#Create argument parser
+parser = argparse.ArgumentParser(description="Gather options from the user")
+parser_group = parser.add_mutually_exclusive_group()
+parser.add_argument("--output", dest="output", default=True, type=bool,metavar="OUTPUT",help="Specify if you want to print output to standard out. Defaults to true.")
+parser.add_argument("--hosts-csv-file", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
+parser.add_argument("--default-username", dest="defaultUsername", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv")
+parser_group.add_argument("--default-password", dest="defaultPassword", default="netscreen",metavar="PASSWORD",help="Specify the default password to use when not specified within the csv")
+parser_group.add_argument("--default-password-secure", dest="defaultPassword", default="netscreen",metavar="PASSWORD",help="Be prompted for the the default password to use when not specified within the csv")
+args = parser.parse_args()
+
+if args.hostCSVFile != "": #check if singular hosts are specified
+    hp = HostParser(args.hostCSVFile)
+    if args.output:
+        if len(hp.hostList) > 1:
+            print "Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile)
+        elif len(hp.hostList) == 0:
+            print "Found %s hosts in %s CSV file. No hosts to gather stats from." % (len(hp.hostList),args.hostCSVFile)
+        else:
+            print "Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile)
+
+    for item in hp.getHosts():
+        agent = NetScreenAgent(item["host"],item["username"],item["password"],True)
+        if args.output:
+            print "\n======================================================================"
+            print "Connecting to host %s" % (item["host"])
+        try:
+            agent.connect()
+            agent.getSystemFacts()
+            if agent.systemFacts["product"] != "":
+                if args.output:
+                    print "Successfully connected to host %s" % (item["host"])
+                    print "Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"])
+                agent.getAllAsicCounters()
+                agent.disconnect()
+                agent.compareAsicCounters()
+                print "======================================================================\n"
+            else:
+                print "Failed to fetch system facts about host: %s" % (item["host"])
+        except Exception, e:
+            print e
+else:
+    parser.print_help()
