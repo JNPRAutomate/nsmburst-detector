@@ -4,4 +4,4 @@
 foo,bar
 foo,bar,
 #172.22.152.2,netscreen,netscreen
-lattern.spglab.juniper.net,regress,MaRtInI
+testhost.example.com,netscreen,netscreen
