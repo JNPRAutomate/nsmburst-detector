@@ -1,8 +1,29 @@
 #NetScreen Microburst Detector
 
-This tool allows you to
+This tool allows you to detect microbursts within an ASIC-Based NetScreen platform
 
 #Python Requirements
+
+This code was tested on Python 2.7, however it most likely would work within other releases depending on the support of the required libraries.
+
+The majority of modules used within this tool are contained within the Python standard library.
+
+However there are some additonal libraries that you need to install.
+
+1) ecdsa==0.11 2) paramiko==1.14.1 3) pycrypto==2.6.1 4) wsgiref==0.1.2
+
+Using the PIP tool it is simple to install these packages. In the file "virtualenv_requirements.txt" all of these modules are listed.
+
+Simple do the following and PIP will install the modules for you. Depending on your platform and or Python configuration these modules may need to be compiled.
+
+```
+pip install -r virtualenv_requirements.txt
+
+```
+
+#Setting up your Python environment
+
+There are many philosophies in how to configure your Python environment. For the development of this tool [pyenv](https://github.com/yyuu/pyenv) and [virtualenv](https://github.com/yyuu/pyenv-virtualenv) were used
 
 #Usage
 
