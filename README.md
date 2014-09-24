@@ -18,7 +18,6 @@ Simple do the following and PIP will install the modules for you. Depending on y
 
 ```
 pip install -r virtualenv_requirements.txt
-
 ```
 
 #Setting up your Python environment
@@ -26,6 +25,10 @@ pip install -r virtualenv_requirements.txt
 There are many philosophies in how to configure your Python environment. For the development of this tool [pyenv](https://github.com/yyuu/pyenv) and [virtualenv](https://github.com/yyuu/pyenv-virtualenv) were used
 
 #Usage
+
+To use the tool please install the required libraries as described in the section [Python Requirements](https://github.com/JNPRAutomate/nsmburst-detector#python-requirements).
+
+Once completed simply download the nsautomate.py tool and see the usage patterns below.
 
 ```
 user@device$ ./nsautomate.py
