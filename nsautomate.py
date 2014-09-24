@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Microburst detection tool for ASIC-based NetScreen platforms
 """
@@ -11,6 +12,7 @@ import exceptions
 import sys
 #non-module imports
 import argparse
+import getpass
 
 #used to enable SSH debugging
 #paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
@@ -60,13 +62,13 @@ class HostParser:
                     lineItems = line.split(",")
                     if len(lineItems) == 3 and lineItems[0] != "" and lineItems[1] != "" and lineItems[2] != "":
                         if newlineOnlyRE.match(lineItems[0]) or newlineOnlyRE.match(lineItems[1]) or newlineOnlyRE.match(lineItems[2]):
-                            '''carrige return only found'''
+                            """carrige return only found"""
                         else:
                             self.hostList.append({"host":lineItems[0].rstrip(),"username":lineItems[1].rstrip(),"password":lineItems[2].rstrip()})
                     elif len(lineItems) == 1 and lineItems[0] == "" and lineItems[1] == "" and lineItems[2] == "":
                         """Only host was specified"""
                         if newlineOnlyRE.match(lineItems[0]) or newlineOnlyRE.match(lineItems[1]) or newlineOnlyRE.match(lineItems[2]):
-                            '''carrige return only found'''
+                            """carrige return only found"""
                         else:
                             self.hostList.append({"host":lineItems[0].rstrip(),"username":"","password":""})
                     else:
@@ -249,55 +251,57 @@ class NetScreenAgent:
     def getAllAsicCounters(self):
         """Get all counters from the platform"""
         #itterate through the asics and the counters on the platform
-        asic_list = ASICList[self.systemFacts["product"]]["asic_list"]
-        qmu_list = ASICList[self.systemFacts["product"]]["qmu_list"]
         endValues = dict()
-        runid = "0"
-        for asic in asic_list:
-            endValues[asic] = {}
-            for qmu in qmu_list:
-                #Get the inital asic counters to initialize the buffer, ignore output
-                self._getAsicCounter(asic,qmu)
-                #Get the ASIC counters and save the output
-                output = self._getAsicCounter(asic,qmu)
-                lines = output.split("\n")
-                queueList = BUFFERList[str(qmu)]
-                endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
-        runid = "1"
-        #sleep for 2 seconds to grab diff of queues
-        time.sleep(2)
-        for asic in asic_list:
-            for qmu in qmu_list:
-                self._getAsicCounter(asic,qmu)
-                output = self._getAsicCounter(asic,qmu)
-                lines = output.split("\n")
-                queueList = BUFFERList[str(qmu)]
-                endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
-        self.asicCounters = endValues
+        if self.systemFacts["product"] in ASICList:
+            asic_list = ASICList[self.systemFacts["product"]]["asic_list"]
+            qmu_list = ASICList[self.systemFacts["product"]]["qmu_list"]
+            runid = "0"
+            for asic in asic_list:
+                endValues[asic] = {}
+                for qmu in qmu_list:
+                    #Get the inital asic counters to initialize the buffer, ignore output
+                    self._getAsicCounter(asic,qmu)
+                    #Get the ASIC counters and save the output
+                    output = self._getAsicCounter(asic,qmu)
+                    lines = output.split("\n")
+                    queueList = BUFFERList[str(qmu)]
+                    endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
+            runid = "1"
+            #sleep for 2 seconds to grab diff of queues
+            time.sleep(2)
+            for asic in asic_list:
+                for qmu in qmu_list:
+                    self._getAsicCounter(asic,qmu)
+                    output = self._getAsicCounter(asic,qmu)
+                    lines = output.split("\n")
+                    queueList = BUFFERList[str(qmu)]
+                    endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
+            self.asicCounters = endValues
         return endValues
 
     def compareAsicCounters(self):
         """compare the two asic values"""
-        for asic in self.asicCounters:
-            for queue in self.asicCounters[asic]:
-                runid0 = ""
-                runid1 = ""
-                if "0" in self.asicCounters[asic][queue]:
-                    """queue initilized already"""
-                    runid0 = self.asicCounters[asic][queue]["0"]
+        if len(self.asicCounters) > 0:
+            for asic in self.asicCounters:
+                for queue in self.asicCounters[asic]:
+                    runid0 = ""
+                    runid1 = ""
+                    if "0" in self.asicCounters[asic][queue]:
+                        """queue initilized already"""
+                        runid0 = self.asicCounters[asic][queue]["0"]
 
-                if "1" in self.asicCounters[asic][queue]:
-                    """queue initilized already"""
-                    runid1 = self.asicCounters[asic][queue]["1"]
+                    if "1" in self.asicCounters[asic][queue]:
+                        """queue initilized already"""
+                        runid1 = self.asicCounters[asic][queue]["1"]
 
-                if runid1 != "" and runid0 != "":
-                    asicDiff = int(runid0,0) - int(runid1,0)
-                    if asicDiff > 0:
-                        if self.output:
-                            print "Packet loss of %d packet(s) detected in ASIC %s witin queue %s on host %s" % (asicDiff,asic,queue.rjust(6),self.systemFacts["hostname"])
-                    else:
-                        if self.output:
-                            print "No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"])
+                    if runid1 != "" and runid0 != "":
+                        asicDiff = int(runid0,0) - int(runid1,0)
+                        if asicDiff > 0:
+                            if self.output:
+                                print "Packet loss of %d packet(s) detected in ASIC %s witin queue %s on host %s" % (asicDiff,asic,queue.rjust(6),self.systemFacts["hostname"])
+                        else:
+                            if self.output:
+                                print "No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"])
 
     def disconnect(self):
         """Disconnect from the device"""
@@ -310,13 +314,25 @@ class NetScreenAgent:
 
 #Create argument parser
 parser = argparse.ArgumentParser(description="Gather options from the user")
-parser_group = parser.add_mutually_exclusive_group()
-parser.add_argument("--output", dest="output", default=True, type=bool,metavar="OUTPUT",help="Specify if you want to print output to standard out. Defaults to true.")
-parser.add_argument("--hosts-csv-file", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
-parser.add_argument("--default-username", dest="defaultUsername", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv")
-parser_group.add_argument("--default-password", dest="defaultPassword", default="netscreen",metavar="PASSWORD",help="Specify the default password to use when not specified within the csv")
-parser_group.add_argument("--default-password-secure", dest="defaultPassword", default="netscreen",metavar="PASSWORD",help="Be prompted for the the default password to use when not specified within the csv")
+parser.add_argument("---output", dest="output", action="store_true",help="Specify if you want to print output to standard out. Defaults to printing output.")
+parser.add_argument("---no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
+parser.set_defaults(output=True)
+parser.add_argument("--csv", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
+parser.add_argument("--host", dest="host", default="",metavar="HOST",help="Specify single host to connect to. Can not be used with --csv.")
+parser.add_argument("--username", dest="username", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv.")
+parser.add_argument("--password", dest="password", default="netscreen",metavar="PASSWORD",help="Specify the default password to use when not specified within the csv.")
+parser.add_argument("--password-secure", dest="passwordSecure", action="store_true", help="Be prompted for the the default password.")
 args = parser.parse_args()
+
+userPassword = ""
+
+#check for secure password
+if args.passwordSecure == True:
+    password = getpass.getpass()
+    userPassword = password
+else:
+    userPassword = args.password
+
 
 if args.hostCSVFile != "": #check if singular hosts are specified
     hp = HostParser(args.hostCSVFile)
@@ -329,7 +345,13 @@ if args.hostCSVFile != "": #check if singular hosts are specified
             print "Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile)
 
     for item in hp.getHosts():
-        agent = NetScreenAgent(item["host"],item["username"],item["password"],True)
+        if item["username"] == "":
+            item["username"] = args.username
+
+        if item["password"] == "":
+            item["password"] = userPassword
+
+        agent = NetScreenAgent(item["host"],item["username"],item["password"],args.output)
         if args.output:
             print "\n======================================================================"
             print "Connecting to host %s" % (item["host"])
@@ -348,5 +370,26 @@ if args.hostCSVFile != "": #check if singular hosts are specified
                 print "Failed to fetch system facts about host: %s" % (item["host"])
         except Exception, e:
             print e
+elif args.host != "":
+    agent = NetScreenAgent(args.host,args.username,userPassword,args.output)
+    if args.output:
+        print "\n======================================================================"
+        print "Connecting to host %s" % (args.host)
+    try:
+        agent.connect()
+        agent.getSystemFacts()
+        if agent.systemFacts["product"] != "":
+            if args.output:
+                print "Successfully connected to host %s" % (args.host)
+                print "Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"])
+            agent.getAllAsicCounters()
+            agent.disconnect()
+
+            agent.compareAsicCounters()
+            print "======================================================================\n"
+        else:
+            print "Failed to fetch system facts about host: %s" % (args.host)
+    except Exception, e:
+        print e
 else:
     parser.print_help()
