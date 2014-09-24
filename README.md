@@ -107,10 +107,60 @@ user@device$ ./python nsautomate.py --csv test-devices.csv
 Found 2 hosts in test-devices.csv CSV file. Starting stats gathering.
 
 ======================================================================
-Connecting to host 172.22.152.24
-Unable to connect to host: 172.22.152.24
+Connecting to host 192.168.100.1
+Unable to connect to host: 192.168.100.1
 
 ======================================================================
-Connecting to host lattern.spglab.juniper.net
-Unable to connect to host: lattern.spglab.juniper.net
+Connecting to host testhost.example.com
+Successfully connected to host testhost.spglab.juniper.net
+Host: testhost Product: NetScreen-5400-II Serial Number: 0047052006000045
+No packet loss detected in ASIC 1 witin queue XMT1-d on host testhost
+No packet loss detected in ASIC 1 witin queue CPU1-d on host testhost
+No packet loss detected in ASIC 1 witin queue  L2Q-d on host testhost
+No packet loss detected in ASIC 1 witin queue RSM2-d on host testhost
+No packet loss detected in ASIC 1 witin queue  SLU-d on host testhost
+No packet loss detected in ASIC 1 witin queue CPU2-d on host testhost
+No packet loss detected in ASIC 2 witin queue XMT1-d on host testhost
+No packet loss detected in ASIC 2 witin queue CPU1-d on host testhost
+No packet loss detected in ASIC 2 witin queue  L2Q-d on host testhost
+No packet loss detected in ASIC 2 witin queue RSM2-d on host testhost
+No packet loss detected in ASIC 2 witin queue  SLU-d on host testhost
+No packet loss detected in ASIC 2 witin queue CPU2-d on host testhost
+No packet loss detected in ASIC 3 witin queue XMT1-d on host testhost
+No packet loss detected in ASIC 3 witin queue CPU1-d on host testhost
+No packet loss detected in ASIC 3 witin queue  L2Q-d on host testhost
+No packet loss detected in ASIC 3 witin queue RSM2-d on host testhost
+No packet loss detected in ASIC 3 witin queue  SLU-d on host testhost
+No packet loss detected in ASIC 3 witin queue CPU2-d on host testhost
+No packet loss detected in ASIC 4 witin queue XMT1-d on host testhost
+No packet loss detected in ASIC 4 witin queue CPU1-d on host testhost
+No packet loss detected in ASIC 4 witin queue  L2Q-d on host testhost
+No packet loss detected in ASIC 4 witin queue RSM2-d on host testhost
+No packet loss detected in ASIC 4 witin queue  SLU-d on host testhost
+No packet loss detected in ASIC 4 witin queue CPU2-d on host testhost
+======================================================================
 ```
+
+##Underrstanding Output
+
+The tool will attempt to connect to one host or a list of host provided via a CSV file. The tool will first gather some system facts. This includes
+
+##Caveats
+
+To make the collection of data to work correctly paging to the console is automatically disabled when the script runs. After completion the console paging is set back to the default of 20 lines.
+
+### Command run to disable paging
+
+```
+set console paging 0
+```
+
+### Command run to enable paging
+
+```
+set console paging 20
+```
+
+###Usage as a library
+
+The nsautomate script is contains two classes or modules in conjunction to the actual execution portion (the code that does the actions against the devices). It is possible to use nsautomate as a module and import it. However to simplify this you do not have to install nsautomate seperately. The module only version of this can be found at the [nsautomate](https://github.com/JNPRAutomate/nsautomate) repo.
