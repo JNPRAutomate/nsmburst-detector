@@ -32,9 +32,9 @@ Once completed simply download the nsautomate.py tool and see the usage patterns
 
 ```
 user@device$ ./nsautomate.py
-usage: nsautomate.py [-h] [---output] [---no-output] [--csv CSVFile]
-                     [--host HOST] [--username USERNAME] [--password PASSWORD]
-                     [--password-secure]
+usage: nsautomate.py [-h] [---output] [---no-output] [--log LOG]
+                     [--csv CSVFile] [--host HOST] [--username USERNAME]
+                     [--password PASSWORD] [--password-secure]
 
 Gather options from the user
 
@@ -44,6 +44,7 @@ optional arguments:
                        Defaults to printing output.
   ---no-output         Specify if you do not want to print output to standard
                        out.
+  --log LOG            Specify the file name where to save the output to.
   --csv CSVFile        Specify the CSV file to read hosts from.
   --host HOST          Specify single host to connect to. Can not be used with
                        --csv.
@@ -67,6 +68,22 @@ Connecting to host 10.0.1.222
 Successfully connected to host 10.0.1.222
 Host: ssg5-v92-wlan Product: SSG5-v92-WLAN Serial Number: 0168102006001722
 ======================================================================
+```
+
+##Write to a log file ###Works in all Modes
+
+```
+user@device$ ./nsautomate.py --host 10.0.1.222 --log output.log
+
+======================================================================
+Connecting to host 10.0.1.222
+Successfully connected to host 10.0.1.222
+Host: ssg5-v92-wlan Product: SSG5-v92-WLAN Serial Number: 0168102006001722
+======================================================================
+
+user@device$ ls
+nsautomate.py    output.log
+
 ```
 
 Specify a single host with a username and password. Excellent for automation scripts.

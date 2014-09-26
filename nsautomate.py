@@ -24,6 +24,36 @@ ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_li
 #The buffer list data structure specifies which queues to look at for each qmu
 BUFFERList = {"1":["CPU2-d"], "2":["CPU1-d","RSM1-d"],"4":["L2Q-d"],"6":["SLU-d","SLI-d"],"7":["XMT1-d","XMT2-d","XMT3-d","XMT4-d","XMT5-d","XMT6-d","XMT7-d","XMT8-d"],"9":["RSM2-d","CPU3-d","CPU4-d","CPU5-d"]}
 
+class OutputLogger:
+    """
+    OutputLogger
+
+    Handles writing to a file and priting output
+    """
+    def __init__(self,output,outputFile=""):
+        self.printStdout = output
+        self.outputFileName = outputFile
+        if self.outputFileName != "":
+            self._openFile()
+
+    def _openFile(self):
+        self.outputFile = open(self.outputFileName, 'w')
+
+    def _closeFile(self):
+        self.outputFile.close()
+
+    def start(self,outputFile=""):
+        self.outputFileName = outputFile
+        if self.outputFileName != "":
+            self._openFile()
+    def stop(self):
+        self._closeFile()
+
+    def log(self,message):
+        if self.printStdout:
+            print message
+        if self.outputFileName != "":
+            self.outputFile.write(message + "\n")
 
 class HostParser:
     """
@@ -281,6 +311,7 @@ class NetScreenAgent:
 
     def compareAsicCounters(self):
         """compare the two asic values"""
+        finalOutput = []
         if len(self.asicCounters) > 0:
             for asic in self.asicCounters:
                 for queue in self.asicCounters[asic]:
@@ -298,10 +329,11 @@ class NetScreenAgent:
                         asicDiff = int(runid0,0) - int(runid1,0)
                         if asicDiff > 0:
                             if self.output:
-                                print "Packet loss of %d packet(s) detected in ASIC %s witin queue %s on host %s" % (asicDiff,asic,queue.rjust(6),self.systemFacts["hostname"])
+                                finalOutput.append("Packet loss of %d packet(s) detected in ASIC %s witin queue %s on host %s" % (asicDiff,asic,queue.rjust(6),self.systemFacts["hostname"]))
                         else:
                             if self.output:
-                                print "No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"])
+                                finalOutput.append("No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"]))
+        return finalOutput.join("\n")
 
     def disconnect(self):
         """Disconnect from the device"""
@@ -317,6 +349,7 @@ parser = argparse.ArgumentParser(description="Gather options from the user")
 parser.add_argument("---output", dest="output", action="store_true",help="Specify if you want to print output to standard out. Defaults to printing output.")
 parser.add_argument("---no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
 parser.set_defaults(output=True)
+parser.add_argument("--log",dest="log",default="",help="Specify the file name where to save the output to.")
 parser.add_argument("--csv", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
 parser.add_argument("--host", dest="host", default="",metavar="HOST",help="Specify single host to connect to. Can not be used with --csv.")
 parser.add_argument("--username", dest="username", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv.")
@@ -333,16 +366,17 @@ if args.passwordSecure == True:
 else:
     userPassword = args.password
 
+logger = OutputLogger(args.output,args.log)
 
 if args.hostCSVFile != "": #check if singular hosts are specified
     hp = HostParser(args.hostCSVFile)
     if args.output:
         if len(hp.hostList) > 1:
-            print "Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile)
+            logger.log("Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile))
         elif len(hp.hostList) == 0:
-            print "Found %s hosts in %s CSV file. No hosts to gather stats from." % (len(hp.hostList),args.hostCSVFile)
+            logger.log("Found %s hosts in %s CSV file. No hosts to gather stats from." % (len(hp.hostList),args.hostCSVFile))
         else:
-            print "Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile)
+            logger.log("Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile))
 
     for item in hp.getHosts():
         if item["username"] == "":
@@ -353,43 +387,45 @@ if args.hostCSVFile != "": #check if singular hosts are specified
 
         agent = NetScreenAgent(item["host"],item["username"],item["password"],args.output)
         if args.output:
-            print "\n======================================================================"
-            print "Connecting to host %s" % (item["host"])
+            logger.log("\n======================================================================")
+            logger.log("Connecting to host %s" % (item["host"]))
         try:
             agent.connect()
             agent.getSystemFacts()
             if agent.systemFacts["product"] != "":
                 if args.output:
-                    print "Successfully connected to host %s" % (item["host"])
-                    print "Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"])
+                    logger.log("Successfully connected to host %s" % (item["host"]))
+                    logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]))
                 agent.getAllAsicCounters()
                 agent.disconnect()
-                agent.compareAsicCounters()
-                print "======================================================================\n"
+                counters = agent.compareAsicCounters()
+                logger.log(counters)
+                logger.log("======================================================================\n")
             else:
-                print "Failed to fetch system facts about host: %s" % (item["host"])
+                logger.log("Failed to fetch system facts about host: %s" % (item["host"]))
         except Exception, e:
-            print e
+            logger.log(str(e))
 elif args.host != "":
     agent = NetScreenAgent(args.host,args.username,userPassword,args.output)
     if args.output:
-        print "\n======================================================================"
-        print "Connecting to host %s" % (args.host)
+        logger.log("\n======================================================================")
+        logger.log("Connecting to host %s" % (args.host))
     try:
         agent.connect()
         agent.getSystemFacts()
         if agent.systemFacts["product"] != "":
             if args.output:
-                print "Successfully connected to host %s" % (args.host)
-                print "Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"])
+                logger.log("Successfully connected to host %s" % (args.host))
+                logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]))
             agent.getAllAsicCounters()
             agent.disconnect()
 
-            agent.compareAsicCounters()
-            print "======================================================================\n"
+            counters = agent.compareAsicCounters()
+            logger.log(counters)
+            logger.log("======================================================================\n")
         else:
-            print "Failed to fetch system facts about host: %s" % (args.host)
+            logger.log("Failed to fetch system facts about host: %s" % (args.host))
     except Exception, e:
-        print e
+        logger.log(str(e))
 else:
     parser.print_help()
