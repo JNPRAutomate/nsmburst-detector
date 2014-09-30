@@ -333,7 +333,7 @@ class NetScreenAgent:
                         else:
                             if self.output:
                                 finalOutput.append("No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"]))
-        return finalOutput.join("\n")
+        return "\n".join(finalOutput)
 
     def disconnect(self):
         """Disconnect from the device"""
