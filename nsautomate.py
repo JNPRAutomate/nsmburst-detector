@@ -10,6 +10,7 @@ import re
 import select
 import exceptions
 import sys
+import datetime
 #non-module imports
 import argparse
 import getpass
@@ -49,11 +50,15 @@ class OutputLogger:
     def stop(self):
         self._closeFile()
 
-    def log(self,message):
-        if self.printStdout:
-            print message
-        if self.outputFileName != "":
-            self.outputFile.write(message + "\n")
+    def log(self,message,timestamp=False):
+        if timestamp:
+            message = datetime.datetime.now().isoformat() + " " + message
+
+        if message != "":
+            if self.printStdout:
+                print message
+            if self.outputFileName != "":
+                self.outputFile.write(message + "\n")
 
 class HostParser:
     """
@@ -350,7 +355,7 @@ parser.add_argument("---output", dest="output", action="store_true",help="Specif
 parser.add_argument("---no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
 parser.set_defaults(output=True)
 parser.add_argument("--log",dest="log",default="",help="Specify the file name where to save the output to.")
-parser.add_argument("--log",dest="logLevel",default="0",metavar="LOGLEVEL",help="Specify the verbosity of logging. Default 0 provides basic logging. Setting .")
+parser.add_argument("--log-level",dest="logLevel",default="0",metavar="LOGLEVEL",help="Specify the verbosity of logging. Default 0 provides basic logging. Setting .")
 parser.add_argument("--csv", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
 parser.add_argument("--host", dest="host", default="",metavar="HOST",help="Specify single host to connect to. Can not be used with --csv.")
 parser.add_argument("--username", dest="username", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv.")
@@ -389,35 +394,35 @@ if args.hostCSVFile != "": #check if singular hosts are specified
         agent = NetScreenAgent(item["host"],item["username"],item["password"],args.output)
         if args.output:
             logger.log("\n======================================================================")
-            logger.log("Connecting to host %s" % (item["host"]))
+            logger.log("Connecting to host %s" % (item["host"]),True)
         try:
             agent.connect()
             agent.getSystemFacts()
             if agent.systemFacts["product"] != "":
                 if args.output:
-                    logger.log("Successfully connected to host %s" % (item["host"]))
-                    logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]))
+                    logger.log("Successfully connected to host %s" % (item["host"]),True)
+                    logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]),True)
                 agent.getAllAsicCounters()
                 agent.disconnect()
                 counters = agent.compareAsicCounters()
                 logger.log(counters)
                 logger.log("======================================================================\n")
             else:
-                logger.log("Failed to fetch system facts about host: %s" % (item["host"]))
+                logger.log("Failed to fetch system facts about host: %s" % (item["host"]),True)
         except Exception, e:
             logger.log(str(e))
 elif args.host != "":
     agent = NetScreenAgent(args.host,args.username,userPassword,args.output)
     if args.output:
         logger.log("\n======================================================================")
-        logger.log("Connecting to host %s" % (args.host))
+        logger.log("Connecting to host %s" % (args.host),True)
     try:
         agent.connect()
         agent.getSystemFacts()
         if agent.systemFacts["product"] != "":
             if args.output:
-                logger.log("Successfully connected to host %s" % (args.host))
-                logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]))
+                logger.log("Successfully connected to host %s" % (args.host),True)
+                logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]),True)
             agent.getAllAsicCounters()
             agent.disconnect()
 
@@ -425,7 +430,7 @@ elif args.host != "":
             logger.log(counters)
             logger.log("======================================================================\n")
         else:
-            logger.log("Failed to fetch system facts about host: %s" % (args.host))
+            logger.log("Failed to fetch system facts about host: %s" % (args.host),True)
     except Exception, e:
         logger.log(str(e))
 else:
