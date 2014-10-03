@@ -350,6 +350,7 @@ parser.add_argument("---output", dest="output", action="store_true",help="Specif
 parser.add_argument("---no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
 parser.set_defaults(output=True)
 parser.add_argument("--log",dest="log",default="",help="Specify the file name where to save the output to.")
+parser.add_argument("--log",dest="logLevel",default="0",metavar="LOGLEVEL",help="Specify the verbosity of logging. Default 0 provides basic logging. Setting .")
 parser.add_argument("--csv", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
 parser.add_argument("--host", dest="host", default="",metavar="HOST",help="Specify single host to connect to. Can not be used with --csv.")
 parser.add_argument("--username", dest="username", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv.")
