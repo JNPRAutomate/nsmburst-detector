@@ -221,7 +221,7 @@ class NetScreenAgent:
         systemMatchRe = re.compile(systemMatch)
 
         # Serial Number: 0047122010000025, Control Number: 00000000
-        serialNumberMatch = "Serial Number: ([\d]+), Control Number: ([\d]+)"
+        serialNumberMatch = "Serial Number: ([\w]+), Control Number: ([\w]+)"
         serialNumberMatchRe = re.compile(serialNumberMatch)
 
         #Software Version: 6.2.0r9-cu4.0, Type: Firewall+VPN
