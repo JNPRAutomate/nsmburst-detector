@@ -34,11 +34,29 @@ class OutputLogger:
     def __init__(self,output,outputFile=""):
         self.printStdout = output
         self.outputFileName = outputFile
+        self.prefix = []
+        self.suffix = []
         if self.outputFileName != "":
             self._openFile()
 
     def _openFile(self):
         self.outputFile = open(self.outputFileName, 'w')
+
+    def addPrefix(self,newPrefix):
+        """Appends a prefix to the output. Each prefix added is put into a list. When a prefix is output each element is seperated by a space. The prefix is added to the front of the output after the timestamp"""
+        self.prefix.append(newPrefix)
+
+    def clearPrefix(self):
+        """Removes prefixes from logger"""
+        self.prefix = []
+
+    def clearSuffix(self):
+        """Removes suffix from logger"""
+        self.suffix = []
+
+    def addSuffix(self,newSuffix):
+        """Appends a suffix to the output. Each suffix added is put into a list. When a suffix is output each element is seperated by a space. The suffix is added to the end of the output."""
+        self.suffix.append(newPrefix)
 
     def _closeFile(self):
         self.outputFile.close()
@@ -47,10 +65,20 @@ class OutputLogger:
         self.outputFileName = outputFile
         if self.outputFileName != "":
             self._openFile()
+
     def stop(self):
         self._closeFile()
 
     def log(self,message,timestamp=False):
+
+        if len(self.prefix) > 0:
+            finalPrefix = " ".join(self.prefix)
+            message = "%s %s" % (finalPrefix,message)
+
+        if len(self.suffix) > 0:
+            finalSuffix = finalPrefix = " ".join(self.suffix)
+            message = "%s %s" % (message,finalSuffix)
+
         if timestamp:
             message = datetime.datetime.now().isoformat() + " " + message
 
@@ -338,7 +366,7 @@ class NetScreenAgent:
                         else:
                             if self.output:
                                 finalOutput.append("No packet loss detected in ASIC %s witin queue %s on host %s" % (asic,queue.rjust(6),self.systemFacts["hostname"]))
-        return "\n".join(finalOutput)
+        return finalOutput
 
     def disconnect(self):
         """Disconnect from the device"""
@@ -373,16 +401,18 @@ else:
     userPassword = args.password
 
 logger = OutputLogger(args.output,args.log)
+logger.addPrefix(socket.gethostname())
 
 if args.hostCSVFile != "": #check if singular hosts are specified
+
     hp = HostParser(args.hostCSVFile)
     if args.output:
         if len(hp.hostList) > 1:
-            logger.log("Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile))
+            logger.log("Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile),True)
         elif len(hp.hostList) == 0:
-            logger.log("Found %s hosts in %s CSV file. No hosts to gather stats from." % (len(hp.hostList),args.hostCSVFile))
+            logger.log("Found %s hosts in %s CSV file. No hosts to gather stats from." % (len(hp.hostList),args.hostCSVFile),True)
         else:
-            logger.log("Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile))
+            logger.log("Found %s hosts in %s CSV file. Starting stats gathering." % (len(hp.hostList),args.hostCSVFile),True)
 
     for item in hp.getHosts():
         if item["username"] == "":
@@ -391,9 +421,11 @@ if args.hostCSVFile != "": #check if singular hosts are specified
         if item["password"] == "":
             item["password"] = userPassword
 
+        #Add local hostname to the log
+
         agent = NetScreenAgent(item["host"],item["username"],item["password"],args.output)
         if args.output:
-            logger.log("\n======================================================================")
+            logger.log("======================================================================",True)
             logger.log("Connecting to host %s" % (item["host"]),True)
         try:
             agent.connect()
@@ -405,8 +437,10 @@ if args.hostCSVFile != "": #check if singular hosts are specified
                 agent.getAllAsicCounters()
                 agent.disconnect()
                 counters = agent.compareAsicCounters()
-                logger.log(counters)
-                logger.log("======================================================================\n")
+                for line in counters:
+                    logger.log(line,True)
+
+                logger.log("======================================================================\n",True)
             else:
                 logger.log("Failed to fetch system facts about host: %s" % (item["host"]),True)
         except Exception, e:
@@ -414,7 +448,7 @@ if args.hostCSVFile != "": #check if singular hosts are specified
 elif args.host != "":
     agent = NetScreenAgent(args.host,args.username,userPassword,args.output)
     if args.output:
-        logger.log("\n======================================================================")
+        logger.log("======================================================================",True)
         logger.log("Connecting to host %s" % (args.host),True)
     try:
         agent.connect()
@@ -427,8 +461,8 @@ elif args.host != "":
             agent.disconnect()
 
             counters = agent.compareAsicCounters()
-            logger.log(counters)
-            logger.log("======================================================================\n")
+            logger.log(counters,True)
+            logger.log("======================================================================\n",True)
         else:
             logger.log("Failed to fetch system facts about host: %s" % (args.host),True)
     except Exception, e:
