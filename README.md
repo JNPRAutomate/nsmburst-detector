@@ -307,10 +307,6 @@ user@device$ ./python nsautomate.py --log-level 1 --host 172.22.152.24
 
 ```
 
-##Understanding Output
-
-The tool will attempt to connect to one host or a list of host provided via a CSV file. The tool will first gather some system facts. This includes
-
 ##Caveats
 
 To make the collection of data to work correctly paging to the console is automatically disabled when the script runs. After completion the console paging is set back to the default of 20 lines.
