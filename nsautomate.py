@@ -483,7 +483,8 @@ elif args.host != "":
             agent.disconnect()
 
             counters = agent.compareAsicCounters()
-            logger.log(counters,True)
+            for line in counters:
+                logger.log(line,True)
             logger.log("======================================================================\n",True)
         else:
             logger.log("Failed to fetch system facts about host: %s" % (args.host),True)
