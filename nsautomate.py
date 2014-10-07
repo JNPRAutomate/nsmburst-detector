@@ -70,6 +70,9 @@ class OutputLogger:
         self._closeFile()
 
     def log(self,message,timestamp=False):
+        baseMessage = message
+
+        message = message.rstrip()
 
         if len(self.prefix) > 0:
             finalPrefix = " ".join(self.prefix)
@@ -82,7 +85,7 @@ class OutputLogger:
         if timestamp:
             message = datetime.datetime.now().isoformat() + " " + message
 
-        if message != "":
+        if baseMessage != "" and baseMessage != "\n" and len(baseMessage) > 0:
             if self.printStdout:
                 print message
             if self.outputFileName != "":
@@ -311,10 +314,11 @@ class NetScreenAgent:
 
             return endValues
 
-    def getAllAsicCounters(self):
+    def getAllAsicCounters(self,verbose):
         """Get all counters from the platform"""
         #itterate through the asics and the counters on the platform
         endValues = dict()
+        verboseOutput = []
         if self.systemFacts["product"] in ASICList:
             asic_list = ASICList[self.systemFacts["product"]]["asic_list"]
             qmu_list = ASICList[self.systemFacts["product"]]["qmu_list"]
@@ -327,6 +331,8 @@ class NetScreenAgent:
                     #Get the ASIC counters and save the output
                     output = self._getAsicCounter(asic,qmu)
                     lines = output.split("\n")
+                    if verbose:
+                        verboseOutput.extend(lines)
                     queueList = BUFFERList[str(qmu)]
                     endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
             runid = "1"
@@ -337,10 +343,12 @@ class NetScreenAgent:
                     self._getAsicCounter(asic,qmu)
                     output = self._getAsicCounter(asic,qmu)
                     lines = output.split("\n")
+                    if verbose:
+                        verboseOutput.extend(lines)
                     queueList = BUFFERList[str(qmu)]
                     endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
             self.asicCounters = endValues
-        return endValues
+        return endValues, verboseOutput
 
     def compareAsicCounters(self):
         """compare the two asic values"""
@@ -383,7 +391,7 @@ parser.add_argument("---output", dest="output", action="store_true",help="Specif
 parser.add_argument("---no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
 parser.set_defaults(output=True)
 parser.add_argument("--log",dest="log",default="",help="Specify the file name where to save the output to.")
-parser.add_argument("--log-level",dest="logLevel",default="0",metavar="LOGLEVEL",help="Specify the verbosity of logging. Default 0 provides basic logging. Setting .")
+parser.add_argument("--log-level",dest="logLevel",default="0",metavar="LOGLEVEL",help="Specify the verbosity of logging. Default 0 provides basic logging. Setting log level to 1 provides max output.")
 parser.add_argument("--csv", dest="hostCSVFile", default="",metavar="CSVFile",help="Specify the CSV file to read hosts from.")
 parser.add_argument("--host", dest="host", default="",metavar="HOST",help="Specify single host to connect to. Can not be used with --csv.")
 parser.add_argument("--username", dest="username", default="netscreen",metavar="USERNAME",help="Specify the default username to use when not specified within the csv.")
@@ -392,6 +400,7 @@ parser.add_argument("--password-secure", dest="passwordSecure", action="store_tr
 args = parser.parse_args()
 
 userPassword = ""
+verboseLogging = False
 
 #check for secure password
 if args.passwordSecure == True:
@@ -399,6 +408,12 @@ if args.passwordSecure == True:
     userPassword = password
 else:
     userPassword = args.password
+
+#check for logging level
+if args.logLevel == "0":
+    verboseLogging = False
+elif args.logLevel == "1":
+    verboseLogging = True
 
 logger = OutputLogger(args.output,args.log)
 logger.addPrefix(socket.gethostname())
@@ -434,12 +449,15 @@ if args.hostCSVFile != "": #check if singular hosts are specified
                 if args.output:
                     logger.log("Successfully connected to host %s" % (item["host"]),True)
                     logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]),True)
-                agent.getAllAsicCounters()
+                endValues, verboseOutput = agent.getAllAsicCounters(verboseLogging)
+                if len(verboseOutput) > 0:
+                    for line in verboseOutput:
+                        logger.log(line,True)
+
                 agent.disconnect()
                 counters = agent.compareAsicCounters()
                 for line in counters:
                     logger.log(line,True)
-
                 logger.log("======================================================================\n",True)
             else:
                 logger.log("Failed to fetch system facts about host: %s" % (item["host"]),True)
@@ -457,7 +475,11 @@ elif args.host != "":
             if args.output:
                 logger.log("Successfully connected to host %s" % (args.host),True)
                 logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]),True)
-            agent.getAllAsicCounters()
+            endValues, verboseOutput = agent.getAllAsicCounters(verboseLogging)
+            if len(verboseOutput) > 0:
+                for line in verboseOutput:
+                    logger.log(line,True)
+
             agent.disconnect()
 
             counters = agent.compareAsicCounters()
