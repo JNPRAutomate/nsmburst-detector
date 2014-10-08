@@ -285,7 +285,7 @@ class NetScreenAgent:
     def _getAsicCounter(self,asicid,qmuid):
         """Get the counters from the specified asic"""
         if self.systemFacts["product"] == "":
-            print "Product facts not gathered"
+            #print "Product facts not gathered"
         elif self.systemFacts["product"] == ASICList["NetScreen-2000"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-1000"]["productString"]:
             output = self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
             return output
@@ -475,6 +475,7 @@ elif args.host != "":
             if args.output:
                 logger.log("Successfully connected to host %s" % (args.host),True)
                 logger.log("Host: %s Product: %s Serial Number: %s" % (agent.systemFacts["hostname"],agent.systemFacts["product"],agent.systemFacts["serialNumber"]),True)
+
             endValues, verboseOutput = agent.getAllAsicCounters(verboseLogging)
             if len(verboseOutput) > 0:
                 for line in verboseOutput:
