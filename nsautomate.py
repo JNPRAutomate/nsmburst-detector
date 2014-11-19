@@ -21,7 +21,7 @@ import getpass
 #Global settings
 
 #The asic and queue mapping data structure. Used for specifing ASICs to check per playtform
-ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_list": [1,2,3,4,5,6], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5400-III": { "productString":"NetScreen-5400-III","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "productString":"NetScreen-1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
+ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_list": [1,2,3,4,5,6], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5400-III": { "productString":"NetScreen-5400-III","asic_list": [1,2,3,4,5,6,9], "NetScreen-5200": { "productString":"NetScreen-5200","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5200-II ": { "productString":"NetScreen-5200-II ","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "productString":"NetScreen-1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 #The buffer list data structure specifies which queues to look at for each qmu
 BUFFERList = {"1":["CPU2-d"], "2":["CPU1-d","RSM1-d"],"4":["L2Q-d"],"6":["SLU-d","SLI-d"],"7":["XMT1-d","XMT2-d","XMT3-d","XMT4-d","XMT5-d","XMT6-d","XMT7-d","XMT8-d"],"9":["RSM2-d","CPU3-d","CPU4-d","CPU5-d"]}
 
@@ -286,10 +286,14 @@ class NetScreenAgent:
         """Get the counters from the specified asic"""
         if self.systemFacts["product"] == "":
             #print "Product facts not gathered"
+            pass
         elif self.systemFacts["product"] == ASICList["NetScreen-2000"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-1000"]["productString"]:
             output = self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
             return output
         elif self.systemFacts["product"] == ASICList["NetScreen-5400-II"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-5400-III"]["productString"]:
+            output = self.runCommand("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
+            return output
+        elif self.systemFacts["product"] == ASICList["NetScreen-5200-II"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-5200"]["productString"]:
             output = self.runCommand("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
             return output
 
