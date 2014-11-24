@@ -287,12 +287,15 @@ class NetScreenAgent:
         if self.systemFacts["product"] == "":
             #print "Product facts not gathered"
             pass
+        #ISG Match
         elif self.systemFacts["product"] == ASICList["NetScreen-2000"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-1000"]["productString"]:
             output = self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
             return output
+        #NS5400 Match
         elif self.systemFacts["product"] == ASICList["NetScreen-5400-II"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-5400-III"]["productString"]:
             output = self.runCommand("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
             return output
+        #NS52000 Match
         elif self.systemFacts["product"] == ASICList["NetScreen-5200-II"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-5200"]["productString"]:
             output = self.runCommand("get asic %s engine qmu pktcnt %s" % (asicid,qmuid))
             return output
