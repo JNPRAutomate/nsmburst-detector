@@ -164,7 +164,7 @@ class NetScreenAgent:
     def connect(self):
         """Create a connection to the remote device"""
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.settimeout(5)
+        self.socket.settimeout(15)
         try:
             self.socket.connect((self.remoteHost,22))
             self.transport = paramiko.Transport(self.socket)
@@ -176,6 +176,8 @@ class NetScreenAgent:
             self.chan.settimeout(None)
             self.chan.get_pty(term='vt100', width=80, height=24)
             self.chan.invoke_shell()
+            while self.chan.send_ready() != True:
+                pass
             self._disablePaging()
         except:
             raise Exception("Unable to connect to host: %s" % (self.remoteHost))
