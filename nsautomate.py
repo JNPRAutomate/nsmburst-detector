@@ -174,7 +174,6 @@ class NetScreenAgent:
             self.chan.set_combine_stderr(False)
             self.chan.setblocking(blocking=1)
             self.chan.settimeout(None)
-            self.chan.get_pty(term='vt100', width=80, height=24)
             self.chan.invoke_shell()
             while self.chan.send_ready() != True:
                 pass

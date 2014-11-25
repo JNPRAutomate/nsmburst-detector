@@ -10,7 +10,7 @@ The majority of modules used within this tool are contained within the Python st
 
 However there are some additonal libraries that you need to install.
 
-1) ecdsa==0.11 2) paramiko==1.14.1 3) pycrypto==2.6.1 4) wsgiref==0.1.2
+1) ecdsa==0.11 2) paramiko==1.15.1 3) pycrypto==2.6.1 4) wsgiref==0.1.2
 
 Using the PIP tool it is simple to install these packages. In the file "virtualenv_requirements.txt" all of these modules are listed.
 

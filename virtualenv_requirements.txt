@@ -1,4 +1,6 @@
+dpkt-fix==1.7
 ecdsa==0.11
-paramiko==1.14.1
+paramiko==1.15.1
+pexpect==3.3
 pycrypto==2.6.1
 wsgiref==0.1.2
