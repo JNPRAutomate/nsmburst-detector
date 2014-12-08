@@ -21,7 +21,7 @@ import getpass
 #Global settings
 
 #The asic and queue mapping data structure. Used for specifing ASICs to check per playtform
-ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_list": [1,2,3,4,5,6], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5400-III": { "productString":"NetScreen-5400-III","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5200": { "productString":"NetScreen-5200","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5200-II": { "productString":"NetScreen-5200-II","asic_list": [1,2,3,4,5,6,9], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-1000": { "productString":"NetScreen-1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
+ASICList = { "NetScreen-5400-II": { "productString":"NetScreen-5400-II","asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5400-III": { "productString":"NetScreen-5400-III","asic_list": [0,1,2,3,4,5], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5200": { "productString":"NetScreen-5200","asic_list": [0,1], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-5200-II": { "productString":"NetScreen-5200-II","asic_list": [0,1], "qmu_list":[1,2,4,6,7,9]}, "NetScreen-ISG1000": { "productString":"NetScreen-ISG1000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }, "NetScreen-2000": { "productString":"NetScreen-2000", "asic_list": [0], "qmu_list":[1,2,4,6,7,9] }}
 #The buffer list data structure specifies which queues to look at for each qmu
 BUFFERList = {"1":["CPU2-d"], "2":["CPU1-d","RSM1-d"],"4":["L2Q-d"],"6":["SLU-d","SLI-d"],"7":["XMT1-d","XMT2-d","XMT3-d","XMT4-d","XMT5-d","XMT6-d","XMT7-d","XMT8-d"],"9":["RSM2-d","CPU3-d","CPU4-d","CPU5-d"]}
 
@@ -32,6 +32,7 @@ class OutputLogger:
     Handles writing to a file and priting output
     """
     def __init__(self,output,outputFile=""):
+        """Initializes all of the bufferes for logging"""
         self.printStdout = output
         self.outputFileName = outputFile
         self.prefix = []
@@ -40,6 +41,7 @@ class OutputLogger:
             self._openFile()
 
     def _openFile(self):
+        """Opens a file for writing"""
         self.outputFile = open(self.outputFileName, 'w')
 
     def addPrefix(self,newPrefix):
@@ -62,14 +64,18 @@ class OutputLogger:
         self.outputFile.close()
 
     def start(self,outputFile=""):
+        """Prepares the logger to start logging by opening the file to write to"""
         self.outputFileName = outputFile
         if self.outputFileName != "":
             self._openFile()
 
     def stop(self):
-        self._closeFile()
+        """Stops the logger by closing the file"""
+        if self.outputFileName != "":
+            self._closeFile()
 
     def log(self,message,timestamp=False):
+        """Logs a message with an optional timestamp"""
         baseMessage = message
 
         message = message.rstrip()
@@ -114,35 +120,42 @@ class HostParser:
         self.currentHost = 0
         self._parse()
     def _parse(self):
-        '''parse host file'''
+        """parse host file"""
         try:
+            """Try to open the file for reading"""
             openFile = open(self.sourceFile)
             lines = openFile.readlines()
             openFile.close()
+            """Comment line regex matches"""
             commentLineRE = re.compile("^#.*|^//.*")
             newlineOnlyRE = re.compile("^\n$")
             for line in lines:
                 if commentLineRE.match(line):
-                    '''Comment ignoring line'''
+                    """Comment ignoring line"""
+                    pass
                 else:
+                    """parse lines"""
                     lineItems = line.split(",")
                     if len(lineItems) == 3 and lineItems[0] != "" and lineItems[1] != "" and lineItems[2] != "":
                         if newlineOnlyRE.match(lineItems[0]) or newlineOnlyRE.match(lineItems[1]) or newlineOnlyRE.match(lineItems[2]):
                             """carrige return only found"""
+                            pass
                         else:
                             self.hostList.append({"host":lineItems[0].rstrip(),"username":lineItems[1].rstrip(),"password":lineItems[2].rstrip()})
                     elif len(lineItems) == 1 and lineItems[0] == "" and lineItems[1] == "" and lineItems[2] == "":
                         """Only host was specified"""
                         if newlineOnlyRE.match(lineItems[0]) or newlineOnlyRE.match(lineItems[1]) or newlineOnlyRE.match(lineItems[2]):
                             """carrige return only found"""
+                            pass
                         else:
                             self.hostList.append({"host":lineItems[0].rstrip(),"username":"","password":""})
                     else:
-                        '''Ignore line'''
+                        """Ignore line"""
+                        pass
         except:
             raise Exception("Unable to open file")
     def getHosts(self):
-        '''return the current hostList as a list of dicts'''
+        """return the current hostList as a list of dicts"""
         return self.hostList
 
 class NetScreenAgent:
@@ -166,19 +179,24 @@ class NetScreenAgent:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.settimeout(15)
         try:
+            #Connect to the remote socket
             self.socket.connect((self.remoteHost,22))
+            #Start the ssh transport
             self.transport = paramiko.Transport(self.socket)
             self.transport.start_client()
             self.transport.auth_password(username=self.username,password=self.password)
+            #Open a new channel to the ssh host
             self.chan = self.transport.open_session()
             self.chan.set_combine_stderr(False)
             self.chan.setblocking(blocking=1)
             self.chan.settimeout(None)
             self.chan.invoke_shell()
+            #Wait until the channel is ready, helpful for slow links
             while self.chan.send_ready() != True:
                 pass
             self._disablePaging()
         except:
+            """Raise an exception that a connection is unable to be made"""
             raise Exception("Unable to connect to host: %s" % (self.remoteHost))
 
     def _runSilentCommand(self,command,maxMatch):
@@ -188,15 +206,16 @@ class NetScreenAgent:
         result=""
         promptMatch = 0
         while True:
+            #Gather the output from the command until the prompt is detected
             coutstr = self.chan.recv(1024)
             result += coutstr
             if len(coutstr) < 1024:
                 lines = result.splitlines()
                 for line in lines:
-                    #print "SILENT " + line
                     if self.promptRegex.match(line):
                         promptMatch = promptMatch + 1
                         if promptMatch == maxMatch:
+                            #Prompt detected exit
                             return
 
     def _disablePaging(self):
@@ -207,9 +226,37 @@ class NetScreenAgent:
         """disables paging on the console to prevent the need to interact with a pagnated set of output"""
         self._runSilentCommand("set console page 20",1)
 
+    def _exit_session(self,save=False):
+        """Exit the ssh session. Optionally save config."""
+        self.chan.send("exit\n")
+        coutstr=""
+        result=""
+        promptMatch = 0
+        maxMatch = 1
+        configModMatch = ".*Configuration modified\, save\? \[y\]\/n.*"
+        configModMatchRe = re.compile(configModMatch)
+        while True:
+            #Gather the output from the command until the prompt is detected
+            coutstr = self.chan.recv(1024)
+            result += coutstr
+            if len(coutstr) < 1024:
+                lines = result.splitlines()
+                for line in lines:
+                    if self.promptRegex.match(line):
+                        promptMatch = promptMatch + 1
+                        if promptMatch == maxMatch:
+                            #Prompt detected exit
+                            return
+                    elif configModMatchRe.match(line):
+                        if save == True:
+                            self.chan.send("y")
+                            return
+                        else:
+                            self.chan.send("n")
+                            return
+
     def runCommand(self,command):
         """Run a specified command against the device, returns the output of the command"""
-        #validate connected before running command
         self.chan.send(command + "\n")
         coutstr=""
         result=""
@@ -217,6 +264,7 @@ class NetScreenAgent:
         promptMatch = 0
         lineCount = 0
         while True:
+            #Gather the output from the command until the prompt is detected
             coutstr = self.chan.recv(1024)
             result += coutstr
             if len(coutstr) < 1024:
@@ -229,6 +277,7 @@ class NetScreenAgent:
                             return finalOutput
                     elif lineCount == 1:
                         """Skip processing this line"""
+                        pass
                     else:
                         finalOutput = finalOutput + line + "\n"
 
@@ -245,6 +294,7 @@ class NetScreenAgent:
         output = self.runCommand("get hostname")
         splitLines = output.splitlines()
         for line in splitLines:
+            #Gather the output from the command until the hostname is detected
             if hostnameMatchRe.match(line):
                 result = hostnameMatchRe.match(line)
                 self.systemFacts["hostname"] = result.group(1)
@@ -253,32 +303,33 @@ class NetScreenAgent:
     def checkPlatform(self):
         """Determine the local platform type"""
 
-        # Product Name: NetScreen-5400-III
+        # Example Match Product Name: NetScreen-5400-III
         systemMatch = "Product Name: ([\w\W]+)"
         systemMatchRe = re.compile(systemMatch)
 
-        # Serial Number: 0047122010000025, Control Number: 00000000
+        # Example Match Serial Number: 0047122010000025, Control Number: 00000000
         serialNumberMatch = "Serial Number: ([\w]+), Control Number: ([\w]+)"
         serialNumberMatchRe = re.compile(serialNumberMatch)
 
-        #Software Version: 6.2.0r9-cu4.0, Type: Firewall+VPN
+        # Example Match Software Version: 6.2.0r9-cu4.0, Type: Firewall+VPN
         softwareVersionMatch = "Software Version: ([\w\W]+), Type: ([\w\W]+)"
         softwareVersionMatchRe = re.compile(softwareVersionMatch)
 
         output = self.runCommand("get system")
         splitLines = output.splitlines()
         for line in splitLines:
+            #Gather the output from the command until the correct facts are detected
             if systemMatchRe.match(line):
-                #
+                #Match the product name
                 result = systemMatchRe.match(line)
                 self.systemFacts["product"] = result.group(1)
             elif serialNumberMatchRe.match(line):
-                #
+                #Match the serial and control numbers
                 result = serialNumberMatchRe.match(line)
                 self.systemFacts["serialNumber"] = result.group(1)
                 self.systemFacts["controlNumber"] = result.group(2)
             elif softwareVersionMatchRe.match(line):
-                #
+                #Match the version and type of product
                 result = softwareVersionMatchRe.match(line)
                 self.systemFacts["version"] = result.group(1)
                 self.systemFacts["type"] = result.group(2)
@@ -289,7 +340,7 @@ class NetScreenAgent:
             #print "Product facts not gathered"
             pass
         #ISG Match
-        elif self.systemFacts["product"] == ASICList["NetScreen-2000"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-1000"]["productString"]:
+        elif self.systemFacts["product"] == ASICList["NetScreen-2000"]["productString"] or self.systemFacts["product"] == ASICList["NetScreen-ISG1000"]["productString"]:
             output = self.runCommand("get asic engine qmu pktcnt %s" % (qmuid))
             return output
         #NS5400 Match
@@ -305,17 +356,21 @@ class NetScreenAgent:
         """parse asic data"""
         for queue in queueList:
             if queue in endValues[asicid]:
-                """queue initilized already"""
+                #queue initilized already
+                pass
             else:
+                #Create dict structre for values
                 endValues[asicid][queue] = {}
 
             if runid in endValues[asicid][queue]:
-                """runid initalized already"""
+                #runid initalized already
+                pass
             else:
                 endValues[asicid][queue][runid] = ""
 
             queueRE = re.compile("pktcnt\[%s\s+\]\s=\s(0x\d{8})\s+(\d*)" % (queue))
             for line in lines:
+                #Gather values for the output
                 if queueRE.match(line):
                     matchResult = queueRE.match(line)
                     endValues[asicid][queue][runid] = matchResult.group(1)
@@ -345,7 +400,7 @@ class NetScreenAgent:
                     endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
             runid = "1"
             #sleep for 2 seconds to grab diff of queues
-            time.sleep(2)
+            time.sleep(1)
             for asic in asic_list:
                 for qmu in qmu_list:
                     self._getAsicCounter(asic,qmu)
@@ -387,6 +442,7 @@ class NetScreenAgent:
     def disconnect(self):
         """Disconnect from the device"""
         self._enablePaging()
+        self._exit_session()
         self.chan.close()
         self.transport.close()
         self.socket.close()
