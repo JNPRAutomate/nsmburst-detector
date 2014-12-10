@@ -159,7 +159,7 @@ class HostParser:
         return self.hostList
 
 class NetScreenAgent:
-    def __init__(self,hostname,username,password,output):
+    def __init__(self,hostname,username,password,output,clear_session):
         """Initalize the object with the correct hostname,username, and password"""
         self.systemFacts = {"hostname":"","product":"","serialNumber":"","controlNumber":"","version":"","type":""}
         self.remoteHost = hostname
@@ -169,6 +169,7 @@ class NetScreenAgent:
         self.password = password
         self.platform = ""
         self.asicCounters = dict()
+        self.clear_session = clear_session
         if output:
             self.output = output
         else:
@@ -194,29 +195,38 @@ class NetScreenAgent:
             #Wait until the channel is ready, helpful for slow links
             while self.chan.send_ready() != True:
                 pass
+
+            if self.clear_session == True:
+                self._clear_admin_sessions()
+
             self._disablePaging()
+
         except:
             """Raise an exception that a connection is unable to be made"""
             raise Exception("Unable to connect to host: %s" % (self.remoteHost))
 
     def _runSilentCommand(self,command,maxMatch):
         """Run a command and supress any output, used for simple housekeeping tasks"""
+        #sleep to slow the input to the device
+        time.sleep(0.2)
         self.chan.send(command + "\n")
         coutstr=""
         result=""
         promptMatch = 0
         while True:
             #Gather the output from the command until the prompt is detected
-            coutstr = self.chan.recv(1024)
-            result += coutstr
-            if len(coutstr) < 1024:
-                lines = result.splitlines()
-                for line in lines:
-                    if self.promptRegex.match(line):
-                        promptMatch = promptMatch + 1
-                        if promptMatch == maxMatch:
-                            #Prompt detected exit
-                            return
+            if self.chan.recv_ready():
+                coutstr = self.chan.recv(1024)
+                result += coutstr
+                if len(coutstr) < 1024:
+                    lines = result.splitlines()
+                    for line in lines:
+                        if self.promptRegex.match(line):
+                            promptMatch = promptMatch + 1
+                            if promptMatch == maxMatch:
+                                #Prompt detected exit
+                                coutstr=""
+                                return
 
     def _disablePaging(self):
         """disables paging on the console to prevent the need to interact with a pagnated set of output"""
@@ -226,8 +236,14 @@ class NetScreenAgent:
         """disables paging on the console to prevent the need to interact with a pagnated set of output"""
         self._runSilentCommand("set console page 20",1)
 
+    def _clear_admin_sessions(self):
+        """disables paging on the console to prevent the need to interact with a pagnated set of output"""
+        self._runSilentCommand("clear admin all",1)
+
     def _exit_session(self,save=False):
         """Exit the ssh session. Optionally save config."""
+        #sleep to slow input to the device
+        time.sleep(0.2)
         self.chan.send("exit\n")
         coutstr=""
         result=""
@@ -237,26 +253,29 @@ class NetScreenAgent:
         configModMatchRe = re.compile(configModMatch)
         while True:
             #Gather the output from the command until the prompt is detected
-            coutstr = self.chan.recv(1024)
-            result += coutstr
-            if len(coutstr) < 1024:
-                lines = result.splitlines()
-                for line in lines:
-                    if self.promptRegex.match(line):
-                        promptMatch = promptMatch + 1
-                        if promptMatch == maxMatch:
-                            #Prompt detected exit
-                            return
-                    elif configModMatchRe.match(line):
-                        if save == True:
-                            self.chan.send("y")
-                            return
-                        else:
-                            self.chan.send("n")
-                            return
+            if self.chan.recv_ready():
+                coutstr = self.chan.recv(1024)
+                result += coutstr
+                if len(coutstr) < 1024:
+                    lines = result.splitlines()
+                    for line in lines:
+                        if self.promptRegex.match(line):
+                            promptMatch = promptMatch + 1
+                            if promptMatch == maxMatch:
+                                #Prompt detected exit
+                                return
+                        elif configModMatchRe.match(line):
+                            if save == True:
+                                self.chan.send("y")
+                                return
+                            else:
+                                self.chan.send("n")
+                                return
 
     def runCommand(self,command):
         """Run a specified command against the device, returns the output of the command"""
+        #sleep to slow input to the device
+        time.sleep(0.2)
         self.chan.send(command + "\n")
         coutstr=""
         result=""
@@ -265,21 +284,22 @@ class NetScreenAgent:
         lineCount = 0
         while True:
             #Gather the output from the command until the prompt is detected
-            coutstr = self.chan.recv(1024)
-            result += coutstr
-            if len(coutstr) < 1024:
-                lines = result.splitlines()
-                for line in lines:
-                    lineCount = lineCount + 1
-                    if self.promptRegex.match(line):
-                        promptMatch = promptMatch + 1
-                        if promptMatch == 1:
-                            return finalOutput
-                    elif lineCount == 1:
-                        """Skip processing this line"""
-                        pass
-                    else:
-                        finalOutput = finalOutput + line + "\n"
+            if self.chan.recv_ready():
+                coutstr = self.chan.recv(1024)
+                result += coutstr
+                if len(coutstr) < 1024:
+                    lines = result.splitlines()
+                    for line in lines:
+                        lineCount = lineCount + 1
+                        if self.promptRegex.match(line):
+                            promptMatch = promptMatch + 1
+                            if promptMatch == 1:
+                                return finalOutput
+                        elif lineCount == 1:
+                            """Skip processing this line"""
+                            pass
+                        else:
+                            finalOutput = finalOutput + line + "\n"
 
     def getSystemFacts(self):
         """Gets all of the needed system facts"""
@@ -399,8 +419,6 @@ class NetScreenAgent:
                     queueList = BUFFERList[str(qmu)]
                     endValues = self._compileAsicDict(endValues,asic,queueList,runid,lines)
             runid = "1"
-            #sleep for 2 seconds to grab diff of queues
-            time.sleep(1)
             for asic in asic_list:
                 for qmu in qmu_list:
                     self._getAsicCounter(asic,qmu)
@@ -451,8 +469,10 @@ class NetScreenAgent:
 
 #Create argument parser
 parser = argparse.ArgumentParser(description="Gather options from the user")
-parser.add_argument("---output", dest="output", action="store_true",help="Specify if you want to print output to standard out. Defaults to printing output.")
-parser.add_argument("---no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
+parser.add_argument("--output", dest="output", action="store_true",help="Specify if you want to print output to standard out. Defaults to printing output.")
+parser.add_argument("--no-output", dest="output", action="store_false",help="Specify if you do not want to print output to standard out.")
+parser.add_argument("--clear-session", dest="clear_session", action="store_true",help="Clears all other admin sessions. Ensure the successful completion of the script.")
+parser.set_defaults(clear_session=False)
 parser.set_defaults(output=True)
 parser.add_argument("--log",dest="log",default="",help="Specify the file name where to save the output to.")
 parser.add_argument("--log-level",dest="logLevel",default="0",metavar="LOGLEVEL",help="Specify the verbosity of logging. Default 0 provides basic logging. Setting log level to 1 provides max output.")
@@ -502,7 +522,7 @@ if args.hostCSVFile != "": #check if singular hosts are specified
 
         #Add local hostname to the log
 
-        agent = NetScreenAgent(item["host"],item["username"],item["password"],args.output)
+        agent = NetScreenAgent(item["host"],item["username"],item["password"],args.output,args.clear_session)
         if args.output:
             logger.log("======================================================================",True)
             logger.log("Connecting to host %s" % (item["host"]),True)
@@ -528,7 +548,7 @@ if args.hostCSVFile != "": #check if singular hosts are specified
         except Exception, e:
             logger.log(str(e))
 elif args.host != "":
-    agent = NetScreenAgent(args.host,args.username,userPassword,args.output)
+    agent = NetScreenAgent(args.host,args.username,userPassword,args.output,args.clear_session)
     if args.output:
         logger.log("======================================================================",True)
         logger.log("Connecting to host %s" % (args.host),True)

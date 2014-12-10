@@ -32,32 +32,33 @@ Once completed simply download the nsautomate.py tool and see the usage patterns
 
 ```
 user@device$ ./nsautomate.py
-usage: nsautomate.py [-h] [---output] [---no-output] [--log LOG]
-                     [--log-level LOGLEVEL] [--csv CSVFile] [--host HOST]
-                     [--username USERNAME] [--password PASSWORD]
+usage: nsautomate.py [-h] [--output] [--no-output] [--clear-session]
+                     [--log LOG] [--log-level LOGLEVEL] [--csv CSVFile]
+                     [--host HOST] [--username USERNAME] [--password PASSWORD]
                      [--password-secure]
 
 Gather options from the user
 
 optional arguments:
-  -h, --help            show this help message and exit
-  ---output             Specify if you want to print output to standard out.
-                        Defaults to printing output.
-  ---no-output          Specify if you do not want to print output to standard
-                        out.
-  --log LOG             Specify the file name where to save the output to.
-  --log-level LOGLEVEL  Specify the verbosity of logging. Default 0 provides
-                        basic logging. Setting log level to 1 provides max
-                        output.
-  --csv CSVFile         Specify the CSV file to read hosts from.
-  --host HOST           Specify single host to connect to. Can not be used
-                        with --csv.
-  --username USERNAME   Specify the default username to use when not specified
-                        within the csv.
-  --password PASSWORD   Specify the default password to use when not specified
-                        within the csv.
-  --password-secure     Be prompted for the the default password.
-
+-h, --help            show this help message and exit
+--output              Specify if you want to print output to standard out.
+                      Defaults to printing output.
+--no-output           Specify if you do not want to print output to standard
+                      out.
+--clear-session       Clears all other admin sessions. Ensure the successful
+                      completion of the script.
+--log LOG             Specify the file name where to save the output to.
+--log-level LOGLEVEL  Specify the verbosity of logging. Default 0 provides
+                      basic logging. Setting log level to 1 provides max
+                      output.
+--csv CSVFile         Specify the CSV file to read hosts from.
+--host HOST           Specify single host to connect to. Can not be used
+                      with --csv.
+--username USERNAME   Specify the default username to use when not specified
+                      within the csv.
+--password PASSWORD   Specify the default password to use when not specified
+                      within the csv.
+--password-secure     Be prompted for the the default password.
 ```
 
 #Examples
@@ -303,21 +304,33 @@ user@device$ ./python nsautomate.py --log-level 1 --host 172.22.152.24
 2014-10-06T21:11:03.073144 source-host No packet loss detected in ASIC 0 witin queue  SLU-d on host testhost
 2014-10-06T21:11:03.073154 source-host No packet loss detected in ASIC 0 witin queue CPU2-d on host testhost
 2014-10-06T21:11:03.073165 source-host ======================================================================
-
-
 ```
 
 ##Caveats
 
+### Timing
+
+All commands have a 1/5th of a second delay between them. This prevents there from commands being too rapidly executed.
+
+### Multi-user sessions
+
+There are some times when other admin sessions may impact the script. In these cases added a flag --clear-session that forces the logout of all other admin users.
+
+### Configuration Changes
+
+Any time a configuration change is made in ScreenOS, even if the change is reverted, the device will request to save the config. By default the script will always answer N to saving the configuration. There were some conditions in which this can cause an impact.
+
+### Disabling paging
+
 To make the collection of data to work correctly paging to the console is automatically disabled when the script runs. After completion the console paging is set back to the default of 20 lines.
 
-### Command run to disable paging
+#### Command run to disable paging
 
 ```
 set console paging 0
 ```
 
-### Command run to enable paging
+#### Command run to enable paging
 
 ```
 set console paging 20
